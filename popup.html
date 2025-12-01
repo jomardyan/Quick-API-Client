@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick API Client</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Chrome / Edge extension</p>
+        <h1>Quick API Client</h1>
+        <p class="sub">Compose and test HTTP requests without leaving the browser.</p>
+      </div>
+      <div class="actions">
+        <button id="sendBtn" class="primary">Send</button>
+        <button id="copyCurlBtn" class="ghost">Copy cURL</button>
+        <button id="themeBtn" class="ghost" title="Toggle theme">Theme</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="row">
+        <div class="label-inline">
+          <label for="presetSelect">Presets</label>
+          <div class="pill-actions">
+            <button id="applyPresetBtn" class="ghost small">Apply</button>
+          </div>
+        </div>
+        <select id="presetSelect">
+          <option value="">Choose a popular API…</option>
+          <option value="jsonplaceholder">JSONPlaceholder: GET /posts/1</option>
+          <option value="github">GitHub API: GET /repos/octocat/Hello-World</option>
+          <option value="httpbin-get">httpbin: GET /get</option>
+          <option value="httpbin-post">httpbin: POST /post (JSON)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="method">Method</label>
+        <select id="method">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>PATCH</option>
+          <option>DELETE</option>
+          <option>HEAD</option>
+          <option>OPTIONS</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="url">URL</label>
+        <input id="url" type="text" placeholder="https://api.example.com/resource">
+      </div>
+      <div class="row dual">
+        <div>
+          <label>Query params</label>
+          <div id="queryParams" class="kv-list"></div>
+          <button id="addQueryBtn" class="ghost small">Add param</button>
+        </div>
+        <div>
+          <label>Headers</label>
+          <div id="headers" class="kv-list"></div>
+          <button id="addHeaderBtn" class="ghost small">Add header</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label-inline">
+          <label for="body">Body</label>
+          <span id="bodyHint" class="hint">Ignored for GET/HEAD</span>
+        </div>
+        <textarea id="body" rows="5" placeholder='{"name":"Ada"}'></textarea>
+      </div>
+      <div class="row">
+        <div class="label-inline">
+          <label>Request preview</label>
+          <button id="clearBtn" class="ghost small">Reset</button>
+        </div>
+        <pre id="requestPreview" class="code"></pre>
+      </div>
+
+      <div class="row">
+        <div class="label-inline">
+          <label>Recent requests</label>
+          <button id="clearHistoryBtn" class="ghost small">Clear history</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </section>
+
+    <section class="panel response">
+      <div class="label-inline">
+        <label>Response</label>
+        <span id="statusBadge" class="badge muted">Waiting</span>
+      </div>
+      <p id="responseMeta" class="meta"></p>
+      <div class="stack">
+        <div>
+          <div class="label-inline">
+            <p class="hint">Headers</p>
+            <button id="copyHeadersBtn" class="ghost small">Copy</button>
+          </div>
+          <pre id="responseHeaders" class="code small"></pre>
+        </div>
+        <div>
+          <div class="label-inline">
+            <p class="hint">Body</p>
+            <div class="pill-actions">
+              <button id="copyBodyBtn" class="ghost small">Copy</button>
+              <button id="saveBodyBtn" class="ghost small">Download</button>
+            </div>
+          </div>
+          <pre id="responseBody" class="code"></pre>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-actions">
+      <button id="sendBtnBottom" class="primary full">Send</button>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

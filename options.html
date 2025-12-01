@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick API Client Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body data-theme="system">
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Chrome / Edge extension</p>
+        <h1>Quick API Client – Options</h1>
+        <p class="sub">Set defaults, theme, and startup behavior.</p>
+      </div>
+      <div class="actions">
+        <button id="saveBtn" class="primary">Save</button>
+        <button id="resetBtn" class="ghost">Reset to defaults</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="row">
+        <label for="themeSelect">Theme</label>
+        <select id="themeSelect">
+          <option value="system">System (auto)</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+        <p class="hint">Applies to popup and options pages.</p>
+      </div>
+
+      <div class="row">
+        <label for="defaultUrl">Default URL</label>
+        <input id="defaultUrl" type="text" placeholder="https://api.example.com/resource">
+      </div>
+
+      <div class="row">
+        <label for="defaultQuery">Default query params</label>
+        <textarea id="defaultQuery" rows="3" placeholder='[{"key":"q","value":"test"}] or lines: q: test'></textarea>
+        <p class="hint">JSON array of key/value objects, or one per line as key: value.</p>
+      </div>
+
+      <div class="row">
+        <label for="defaultHeaders">Default headers</label>
+        <textarea id="defaultHeaders" rows="4" placeholder='[{"key":"Accept","value":"application/json"}] or lines: Accept: application/json'></textarea>
+      </div>
+
+      <div class="row">
+        <label for="defaultBody">Default body</label>
+        <textarea id="defaultBody" rows="5" placeholder='{"name":"Ada"}'></textarea>
+      </div>
+
+      <div class="row checkbox-row">
+        <input id="restoreLast" type="checkbox">
+        <label for="restoreLast">Restore last request when opening popup</label>
+      </div>
+    </section>
+
+    <p id="status" class="status hint"></p>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

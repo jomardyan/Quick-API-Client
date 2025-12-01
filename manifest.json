@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Quick API Client",
+  "version": "1.0.0",
+  "description": "Test REST APIs from a popup: configure method, URL, headers, query params, body, view response, and copy cURL.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Quick API Client"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
