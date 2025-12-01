@@ -5,6 +5,9 @@ const DEFAULT_OPTIONS = {
   defaultQuery: [],
   defaultBody: "",
   restoreLast: true,
+  timeoutMs: 15000,
+  historySize: 8,
+  historyEnabled: true,
 };
 
 const themeSelect = document.getElementById("themeSelect");
@@ -13,9 +16,13 @@ const defaultHeaders = document.getElementById("defaultHeaders");
 const defaultQuery = document.getElementById("defaultQuery");
 const defaultBody = document.getElementById("defaultBody");
 const restoreLast = document.getElementById("restoreLast");
+const timeoutSeconds = document.getElementById("timeoutSeconds");
+const historySize = document.getElementById("historySize");
+const historyEnabled = document.getElementById("historyEnabled");
 const status = document.getElementById("status");
 const saveBtn = document.getElementById("saveBtn");
 const resetBtn = document.getElementById("resetBtn");
+const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 
 function applyTheme(theme) {
   const resolved =
@@ -67,11 +74,16 @@ function loadOptions() {
     defaultQuery.value = kvToDisplay(merged.defaultQuery);
     defaultBody.value = merged.defaultBody || "";
     restoreLast.checked = merged.restoreLast;
+    timeoutSeconds.value = Math.max(1, Math.round((merged.timeoutMs || 15000) / 1000));
+    historySize.value = merged.historySize ?? DEFAULT_OPTIONS.historySize;
+    historyEnabled.checked = merged.historyEnabled !== false;
     applyTheme(merged.theme);
   });
 }
 
 function saveOptions() {
+  const timeoutMs = Math.max(1000, Math.min(60000, Number(timeoutSeconds.value) * 1000));
+  const size = Math.max(0, Math.min(20, Number(historySize.value)));
   const options = {
     theme: themeSelect.value,
     defaultUrl: defaultUrl.value.trim(),
@@ -79,6 +91,9 @@ function saveOptions() {
     defaultQuery: parseKVText(defaultQuery.value),
     defaultBody: defaultBody.value,
     restoreLast: restoreLast.checked,
+    timeoutMs,
+    historySize: size,
+    historyEnabled: historyEnabled.checked,
   };
   chrome.storage.sync.set({ options }, () => {
     status.textContent = "Saved.";
@@ -93,9 +108,18 @@ function resetOptions() {
   setTimeout(() => (status.textContent = ""), 1800);
 }
 
+function clearHistory() {
+  chrome.storage.local.set({ history: [] }, () => {
+    status.textContent = "History cleared.";
+    setTimeout(() => (status.textContent = ""), 1800);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", loadOptions);
 saveBtn.addEventListener("click", saveOptions);
 resetBtn.addEventListener("click", resetOptions);
+clearHistoryBtn.addEventListener("click", clearHistory);
+themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   applyTheme(themeSelect.value);

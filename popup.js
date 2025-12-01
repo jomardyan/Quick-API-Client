@@ -5,6 +5,9 @@ const DEFAULT_OPTIONS = {
   defaultQuery: [],
   defaultBody: "",
   restoreLast: true,
+  timeoutMs: 15000,
+  historySize: 8,
+  historyEnabled: true,
 };
 
 const methodEl = document.getElementById("method");
@@ -13,9 +16,9 @@ const queryListEl = document.getElementById("queryParams");
 const headersListEl = document.getElementById("headers");
 const bodyEl = document.getElementById("body");
 const sendBtn = document.getElementById("sendBtn");
+const sendBtnBottom = document.getElementById("sendBtnBottom");
 const copyCurlBtn = document.getElementById("copyCurlBtn");
 const themeBtn = document.getElementById("themeBtn");
-const sendBtnBottom = document.getElementById("sendBtnBottom");
 const applyPresetBtn = document.getElementById("applyPresetBtn");
 const presetSelect = document.getElementById("presetSelect");
 const historyListEl = document.getElementById("historyList");
@@ -32,10 +35,8 @@ const addQueryBtn = document.getElementById("addQueryBtn");
 const addHeaderBtn = document.getElementById("addHeaderBtn");
 const clearBtn = document.getElementById("clearBtn");
 
-let currentOptions = { ...DEFAULT_OPTIONS };
-
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
-const MAX_HISTORY = 8;
+let maxHistory = 8;
 
 const PRESETS = {
   jsonplaceholder: {
@@ -74,6 +75,7 @@ const PRESETS = {
   },
 };
 
+let currentOptions = { ...DEFAULT_OPTIONS };
 let historyItems = [];
 
 function createKVRow(container, key = "", value = "") {
@@ -134,9 +136,8 @@ function prettifyJsonMaybe(text) {
 }
 
 function highlightJson(text) {
-  // Simple, safe token highlighter for pretty-printed JSON.
   return text
-    .replace(/(&)/g, "&amp;")
+    .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(
@@ -156,10 +157,7 @@ function highlightJson(text) {
 function highlightHeaders(lines) {
   return lines
     .map((line, idx) => {
-      const safe = line
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+      const safe = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       if (idx === 0 && safe.startsWith("HTTP")) {
         return `<span class="tok-status">${safe}</span>`;
       }
@@ -201,6 +199,7 @@ function loadOptions() {
   return new Promise((resolve) => {
     chrome.storage.sync.get("options", ({ options }) => {
       currentOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
+      maxHistory = currentOptions.historySize ?? DEFAULT_OPTIONS.historySize;
       applyTheme(currentOptions.theme);
       chrome.storage.local.get("history", ({ history }) => {
         historyItems = history || [];
@@ -233,12 +232,8 @@ function restoreState() {
     const query = base.query && base.query.length ? base.query : [{}];
     const headers = base.headers && base.headers.length ? base.headers : [{}];
 
-    query.forEach(({ key = "", value = "" }) =>
-      createKVRow(queryListEl, key, value)
-    );
-    headers.forEach(({ key = "", value = "" }) =>
-      createKVRow(headersListEl, key, value)
-    );
+    query.forEach(({ key = "", value = "" }) => createKVRow(queryListEl, key, value));
+    headers.forEach(({ key = "", value = "" }) => createKVRow(headersListEl, key, value));
 
     bodyEl.value = base.body || "";
     updatePreview();
@@ -266,6 +261,10 @@ function updatePreview() {
 
 function renderHistory() {
   historyListEl.innerHTML = "";
+  if (currentOptions.historyEnabled === false || maxHistory === 0) {
+    historyListEl.innerHTML = `<p class="hint">History disabled in options.</p>`;
+    return;
+  }
   if (!historyItems.length) {
     historyListEl.innerHTML = `<p class="hint">No recent requests yet.</p>`;
     return;
@@ -328,7 +327,7 @@ async function sendRequest() {
       }
     }
 
-    statusBadge.textContent = "Sending…";
+    statusBadge.textContent = "Sending...";
     statusBadge.className = "badge muted";
     responseMeta.textContent = "";
     responseHeaders.textContent = "";
@@ -337,7 +336,7 @@ async function sendRequest() {
     chrome.runtime.sendMessage(
       {
         type: "api-request",
-        payload: { url: finalUrl, method, headers: headersObj, body },
+        payload: { url: finalUrl, method, headers: headersObj, body, timeoutMs: currentOptions.timeoutMs || 15000 },
       },
       (res) => {
         if (chrome.runtime.lastError) {
@@ -358,7 +357,9 @@ async function sendRequest() {
           statusBadge.textContent = "Error";
           statusBadge.className = "badge err";
           responseMeta.textContent = res.error || "Request failed";
-          responseBody.textContent = res.error || "Check the URL and try again. If using a non-standard API, it may have CORS restrictions.";
+          responseBody.textContent =
+            res.error ||
+            "Check the URL and try again. If using a non-standard API, it may have CORS restrictions.";
           return;
         }
 
@@ -368,52 +369,54 @@ async function sendRequest() {
             : res.status >= 400
             ? "err"
             : "warn";
-      statusBadge.textContent = `${res.status} ${res.statusText}`;
-      statusBadge.className = `badge ${statusClass}`;
-      responseMeta.textContent = `${res.elapsed}ms • ${res.type.toUpperCase()} • ${res.url}`;
-      const headerLines = (res.headers || []).map(([k, v]) => `${k}: ${v}`);
-      const headerBlock = [`HTTP ${res.status} ${res.statusText}`, ...headerLines];
-      responseHeaders.innerHTML = highlightHeaders(headerBlock);
-      const isJson =
-        (res.headers || []).some(
-          ([k, v]) => k.toLowerCase() === "content-type" && v.toLowerCase().includes("json")
-        ) ||
-        (() => {
-          try {
-            JSON.parse(res.body || "");
-            return true;
-          } catch (err) {
-            return false;
-          }
-        })();
-      if (isJson) {
-        const pretty = prettifyJsonMaybe(res.body || "");
-        responseBody.innerHTML = highlightJson(pretty);
-        responseBody.dataset.lang = "json";
-      } else {
-        responseBody.textContent = res.body || "";
-        responseBody.dataset.lang = "text";
+        statusBadge.textContent = `${res.status} ${res.statusText}`;
+        statusBadge.className = `badge ${statusClass}`;
+        responseMeta.textContent = `${res.elapsed}ms • ${res.type.toUpperCase()} • ${res.url}`;
+        const headerLines = (res.headers || []).map(([k, v]) => `${k}: ${v}`);
+        const headerBlock = [`HTTP ${res.status} ${res.statusText}`, ...headerLines];
+        responseHeaders.innerHTML = highlightHeaders(headerBlock);
+        const isJson =
+          (res.headers || []).some(
+            ([k, v]) => k.toLowerCase() === "content-type" && v.toLowerCase().includes("json")
+          ) ||
+          (() => {
+            try {
+              JSON.parse(res.body || "");
+              return true;
+            } catch (err) {
+              return false;
+            }
+          })();
+        if (isJson) {
+          const pretty = prettifyJsonMaybe(res.body || "");
+          responseBody.innerHTML = highlightJson(pretty);
+          responseBody.dataset.lang = "json";
+        } else {
+          responseBody.textContent = res.body || "";
+          responseBody.dataset.lang = "text";
+        }
+
+        if (currentOptions.historyEnabled !== false && maxHistory > 0) {
+          const now = new Date();
+          const timestamp = `${now.toLocaleDateString()} ${now
+            .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            .toString()}`;
+          const entry = {
+            method,
+            url: finalUrl,
+            headers,
+            query,
+            body: bodyEl.value,
+            timestamp,
+          };
+          historyItems = [entry, ...historyItems].slice(0, maxHistory);
+          chrome.storage.local.set({ history: historyItems });
+          renderHistory();
+        }
       }
+    );
 
-      const now = new Date();
-      const timestamp = `${now.toLocaleDateString()} ${now
-        .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        .toString()}`;
-      const entry = {
-        method,
-        url: finalUrl,
-        headers,
-        query,
-        body: bodyEl.value,
-        timestamp,
-      };
-      historyItems = [entry, ...historyItems].slice(0, MAX_HISTORY);
-      chrome.storage.local.set({ history: historyItems });
-      renderHistory();
-    }
-  );
-
-  saveState();
+    saveState();
   } catch (err) {
     console.error("sendRequest error:", err);
     statusBadge.textContent = "Client Error";
@@ -433,9 +436,7 @@ function buildCurl() {
   const finalUrl = buildUrl(urlEl.value, query) || urlEl.value;
   const lines = [`curl -X ${method} ${shellEscape(finalUrl)}`];
 
-  headers.forEach(({ key, value }) =>
-    lines.push(`  -H ${shellEscape(`${key}: ${value}`)}`)
-  );
+  headers.forEach(({ key, value }) => lines.push(`  -H ${shellEscape(`${key}: ${value}`)}`));
 
   if (!isBodyless(method) && bodyEl.value.trim()) {
     lines.push(`  --data ${shellEscape(bodyEl.value)}`);
@@ -539,7 +540,6 @@ function downloadBody() {
   URL.revokeObjectURL(url);
 }
 
-// Event wiring
 document.addEventListener("DOMContentLoaded", async () => {
   await loadOptions();
   restoreState();

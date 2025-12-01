@@ -36,6 +36,19 @@
         <input id="defaultUrl" type="text" placeholder="https://api.example.com/resource">
       </div>
 
+      <div class="row dual">
+        <div>
+          <label for="timeoutSeconds">Request timeout (seconds)</label>
+          <input id="timeoutSeconds" type="number" min="1" max="60" step="1" value="15">
+          <p class="hint">Max time to wait before aborting a request.</p>
+        </div>
+        <div>
+          <label for="historySize">History size</label>
+          <input id="historySize" type="number" min="0" max="20" step="1" value="8">
+          <p class="hint">0 disables history; otherwise recent requests kept in popup.</p>
+        </div>
+      </div>
+
       <div class="row">
         <label for="defaultQuery">Default query params</label>
         <textarea id="defaultQuery" rows="3" placeholder='[{"key":"q","value":"test"}] or lines: q: test'></textarea>
@@ -52,9 +65,19 @@
         <textarea id="defaultBody" rows="5" placeholder='{"name":"Ada"}'></textarea>
       </div>
 
-      <div class="row checkbox-row">
-        <input id="restoreLast" type="checkbox">
-        <label for="restoreLast">Restore last request when opening popup</label>
+      <div class="row check-grid">
+        <label class="check">
+          <input id="restoreLast" type="checkbox">
+          <span>Restore last request when opening popup</span>
+        </label>
+        <label class="check">
+          <input id="historyEnabled" type="checkbox" checked>
+          <span>Enable request history in popup</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="clearHistoryBtn" class="ghost align-start">Clear saved history</button>
       </div>
     </section>
 

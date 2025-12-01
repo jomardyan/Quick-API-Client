@@ -3,10 +3,12 @@ const DEFAULT_TIMEOUT_MS = 15000;
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "api-request") return;
 
-  console.log("Received api-request", message.payload);
-  const { url, method, headers, body } = message.payload;
+  const { url, method, headers, body, timeoutMs } = message.payload;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS
+  );
   const started = performance.now();
 
   (async () => {
