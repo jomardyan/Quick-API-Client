@@ -194,6 +194,26 @@ textarea {
 .badge.err { color: #f87171; border-color: #f8717144; background: #1f2937; }
 .badge.muted { color: #9ca3af; }
 
+.toast {
+  position: fixed;
+  inset: auto 16px 16px auto;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #0b1221;
+  color: #e5e7eb;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
 .code {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.08)), var(--panel);
   border-radius: 12px;
@@ -245,6 +265,25 @@ button.full {
 .pill-actions {
   display: flex;
   gap: 6px;
+}
+
+.link-button {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.link-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
 }
 
 .history-list {

@@ -34,6 +34,7 @@ const responseBody = document.getElementById("responseBody");
 const addQueryBtn = document.getElementById("addQueryBtn");
 const addHeaderBtn = document.getElementById("addHeaderBtn");
 const clearBtn = document.getElementById("clearBtn");
+const toastEl = document.getElementById("toast");
 
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
@@ -259,6 +260,24 @@ function updatePreview() {
     : "Sends raw text; JSON is auto-formatted if valid";
 }
 
+function originFromUrl(url) {
+  try {
+    return new URL(url).origin + "/*";
+  } catch {
+    return null;
+  }
+}
+
+function ensureOriginPermission(origin) {
+  return new Promise((resolve) => {
+    if (!origin) return resolve(false);
+    chrome.permissions.contains({ origins: [origin] }, (has) => {
+      if (has) return resolve(true);
+      chrome.permissions.request({ origins: [origin] }, (granted) => resolve(Boolean(granted)));
+    });
+  });
+}
+
 function renderHistory() {
   historyListEl.innerHTML = "";
   if (currentOptions.historyEnabled === false || maxHistory === 0) {
@@ -305,6 +324,15 @@ async function sendRequest() {
     if (!finalUrl) {
       statusBadge.textContent = "Invalid URL";
       statusBadge.className = "badge err";
+      return;
+    }
+
+    const origin = originFromUrl(finalUrl);
+    const allowed = await ensureOriginPermission(origin);
+    if (!allowed) {
+      statusBadge.textContent = "Permission denied";
+      statusBadge.className = "badge err";
+      responseMeta.textContent = "Allow host permission to send this request.";
       return;
     }
 
@@ -451,9 +479,11 @@ async function copyCurl() {
     await navigator.clipboard.writeText(text);
     statusBadge.textContent = "cURL copied";
     statusBadge.className = "badge ok";
+    showToast("cURL copied");
   } catch (err) {
     statusBadge.textContent = "Clipboard blocked";
     statusBadge.className = "badge warn";
+    showToast("Clipboard blocked");
   }
 }
 
@@ -524,9 +554,11 @@ async function copyText(text) {
     await navigator.clipboard.writeText(text);
     statusBadge.textContent = "Copied";
     statusBadge.className = "badge ok";
+    showToast("Copied");
   } catch (err) {
     statusBadge.textContent = "Clipboard blocked";
     statusBadge.className = "badge warn";
+    showToast("Clipboard blocked");
   }
 }
 
@@ -538,6 +570,15 @@ function downloadBody() {
   a.download = "response.txt";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function showToast(message) {
+  if (!toastEl) return;
+  toastEl.textContent = message;
+  toastEl.classList.add("show");
+  setTimeout(() => {
+    toastEl.classList.remove("show");
+  }, 1600);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
