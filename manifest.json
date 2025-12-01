@@ -2,6 +2,8 @@
   "manifest_version": 3,
   "name": "Quick API Client",
   "version": "1.0.0",
+  "author": "Hayk Jomardyan",
+  "homepage_url": "https://github.com/jomardyan/Quick-API-Client",
   "description": "Test REST APIs from a popup: configure method, URL, headers, query params, body, view response, and copy cURL.",
   "action": {
     "default_popup": "popup.html",
