@@ -1,5 +1,6 @@
-const DEFAULT_OPTIONS = window.DEFAULT_OPTIONS;
-const clampHistorySize =
+// Use var to avoid redeclaration errors if script is injected multiple times.
+var DEFAULT_OPTIONS = window.DEFAULT_OPTIONS;
+var clampHistorySize =
   window.clampHistorySize ||
   ((size) => {
     const num = Number(size);
