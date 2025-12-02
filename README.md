@@ -122,7 +122,7 @@ Access the Options page by right-clicking the extension icon and selecting "Opti
 - **Default headers** — Headers automatically added to new requests
 - **Restore last request** — Resume previous request on extension open
 - **Request timeout** — Maximum wait time in milliseconds (default: 15000)
-- **History size** — Number of requests to save (0-50, default: 8)
+- **History size** — Number of requests to save (0-50, default: 8; higher values may impact storage)
 - **Enable history** — Toggle history tracking on/off
 
 ## Development

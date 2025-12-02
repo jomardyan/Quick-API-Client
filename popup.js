@@ -1,14 +1,11 @@
-const DEFAULT_OPTIONS = {
-  theme: "system",
-  defaultUrl: "https://jsonplaceholder.typicode.com/posts/1",
-  defaultHeaders: [{ key: "Accept", value: "application/json" }],
-  defaultQuery: [],
-  defaultBody: "",
-  restoreLast: true,
-  timeoutMs: 15000,
-  historySize: 8,
-  historyEnabled: true,
-};
+const DEFAULT_OPTIONS = window.DEFAULT_OPTIONS;
+const clampHistorySize =
+  window.clampHistorySize ||
+  ((size) => {
+    const num = Number(size);
+    if (!Number.isFinite(num)) return DEFAULT_OPTIONS.historySize;
+    return Math.max(0, Math.min(50, num));
+  });
 
 const methodEl = document.getElementById("method");
 const urlEl = document.getElementById("url");
@@ -82,24 +79,40 @@ let historyItems = [];
 function createKVRow(container, key = "", value = "") {
   const row = document.createElement("div");
   row.className = "kv-row";
-  row.innerHTML = `
-    <input type="text" class="kv-key" placeholder="Key" value="${key}">
-    <input type="text" class="kv-value" placeholder="Value" value="${value}">
-    <button class="ghost small remove" title="Remove">✕</button>
-  `;
-  row.querySelector(".remove").addEventListener("click", () => {
+
+  const keyInput = document.createElement("input");
+  keyInput.type = "text";
+  keyInput.className = "kv-key";
+  keyInput.placeholder = "Key";
+  keyInput.value = key;
+
+  const valInput = document.createElement("input");
+  valInput.type = "text";
+  valInput.className = "kv-value";
+  valInput.placeholder = "Value";
+  valInput.value = value;
+
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "ghost small remove";
+  removeBtn.title = "Remove";
+  removeBtn.textContent = "✕";
+
+  [keyInput, valInput].forEach((input) =>
+    ["input", "change"].forEach((evt) =>
+      input.addEventListener(evt, () => {
+        updatePreview();
+        saveState();
+      })
+    )
+  );
+
+  removeBtn.addEventListener("click", () => {
     row.remove();
     updatePreview();
     saveState();
   });
-  ["input", "change"].forEach((evt) =>
-    row.querySelectorAll("input").forEach((input) => {
-      input.addEventListener(evt, () => {
-        updatePreview();
-        saveState();
-      });
-    })
-  );
+
+  row.append(keyInput, valInput, removeBtn);
   container.appendChild(row);
 }
 
@@ -200,7 +213,7 @@ function loadOptions() {
   return new Promise((resolve) => {
     chrome.storage.sync.get("options", ({ options }) => {
       currentOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
-      maxHistory = currentOptions.historySize ?? DEFAULT_OPTIONS.historySize;
+      maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
       applyTheme(currentOptions.theme);
       chrome.storage.local.get("history", ({ history }) => {
         historyItems = history || [];

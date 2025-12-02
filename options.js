@@ -1,14 +1,11 @@
-const DEFAULT_OPTIONS = {
-  theme: "system",
-  defaultUrl: "https://jsonplaceholder.typicode.com/posts/1",
-  defaultHeaders: [{ key: "Accept", value: "application/json" }],
-  defaultQuery: [],
-  defaultBody: "",
-  restoreLast: true,
-  timeoutMs: 15000,
-  historySize: 8,
-  historyEnabled: true,
-};
+const DEFAULT_OPTIONS = window.DEFAULT_OPTIONS;
+const clampHistorySize =
+  window.clampHistorySize ||
+  ((size) => {
+    const num = Number(size);
+    if (!Number.isFinite(num)) return DEFAULT_OPTIONS.historySize;
+    return Math.max(0, Math.min(50, num));
+  });
 
 const themeSelect = document.getElementById("themeSelect");
 const defaultUrl = document.getElementById("defaultUrl");
@@ -68,6 +65,7 @@ function kvToDisplay(kvList) {
 function loadOptions() {
   chrome.storage.sync.get("options", ({ options }) => {
     const merged = { ...DEFAULT_OPTIONS, ...(options || {}) };
+    const historySizeValue = clampHistorySize(merged.historySize);
     themeSelect.value = merged.theme;
     defaultUrl.value = merged.defaultUrl;
     defaultHeaders.value = kvToDisplay(merged.defaultHeaders);
@@ -75,7 +73,7 @@ function loadOptions() {
     defaultBody.value = merged.defaultBody || "";
     restoreLast.checked = merged.restoreLast;
     timeoutSeconds.value = Math.max(1, Math.round((merged.timeoutMs || 15000) / 1000));
-    historySize.value = merged.historySize ?? DEFAULT_OPTIONS.historySize;
+    historySize.value = historySizeValue;
     historyEnabled.checked = merged.historyEnabled !== false;
     applyTheme(merged.theme);
   });
@@ -83,7 +81,7 @@ function loadOptions() {
 
 function saveOptions() {
   const timeoutMs = Math.max(1000, Math.min(60000, Number(timeoutSeconds.value) * 1000));
-  const size = Math.max(0, Math.min(20, Number(historySize.value)));
+  const size = clampHistorySize(historySize.value);
   const options = {
     theme: themeSelect.value,
     defaultUrl: defaultUrl.value.trim(),
