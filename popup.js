@@ -424,6 +424,8 @@ function deleteFavorite() {
     return;
   }
   
+  // Create a simple confirmation via modal would be better, but using confirm for simplicity
+  // TODO: Replace with a proper confirmation modal for better UX
   if (!confirm(`Delete "${favorites[idx].name}"?`)) return;
   
   favorites.splice(idx, 1);
@@ -455,11 +457,13 @@ function closeAuthModalFn() {
   authTemplateBtn.focus();
 }
 
+const MODAL_TRANSITION_DELAY = 100; // Allow time for modal show animation before focusing
+
 function openSaveFavoriteModal() {
   saveFavoriteModal.classList.add("show");
   document.body.style.overflow = "hidden";
   // Use setTimeout to ensure modal is visible before focusing
-  setTimeout(() => favoriteName.focus(), 100);
+  setTimeout(() => favoriteName.focus(), MODAL_TRANSITION_DELAY);
 }
 
 function closeSaveFavoriteModalFn() {
@@ -499,9 +503,19 @@ function applyAuthTemplate() {
       showToast("Enter username and password");
       return;
     }
-    const encoded = btoa(`${username}:${password}`);
-    createKVRow(headersListEl, "Authorization", `Basic ${encoded}`);
-    showToast("Basic auth added");
+    // Basic validation for problematic characters in credentials
+    if (username.includes(':')) {
+      showToast("Username cannot contain colon (:)");
+      return;
+    }
+    try {
+      const encoded = btoa(`${username}:${password}`);
+      createKVRow(headersListEl, "Authorization", `Basic ${encoded}`);
+      showToast("Basic auth added");
+    } catch (err) {
+      showToast("Invalid characters in credentials");
+      return;
+    }
   } else if (type === "apikey-header") {
     const keyName = apiKeyName.value.trim();
     const keyValue = apiKeyValue.value.trim();
