@@ -60,6 +60,12 @@ const bearerFields = document.getElementById("bearerFields");
 const basicFields = document.getElementById("basicFields");
 const apikeyFields = document.getElementById("apikeyFields");
 
+// Help
+const helpBtn = document.getElementById("helpBtn");
+const helpModal = document.getElementById("helpModal");
+const closeHelpModal = document.getElementById("closeHelpModal");
+const closeHelpModalBtn = document.getElementById("closeHelpModalBtn");
+
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
 let favorites = [];
@@ -461,6 +467,18 @@ function closeSaveFavoriteModalFn() {
   document.body.style.overflow = "";
   favoriteName.value = "";
   saveFavoriteBtn.focus();
+}
+
+function openHelpModal() {
+  helpModal.classList.add("show");
+  document.body.style.overflow = "hidden";
+  closeHelpModalBtn.focus();
+}
+
+function closeHelpModalFn() {
+  helpModal.classList.remove("show");
+  document.body.style.overflow = "";
+  helpBtn.focus();
 }
 
 function applyAuthTemplate() {
@@ -925,6 +943,14 @@ authModal.addEventListener("click", (e) => {
 saveFavoriteModal.addEventListener("click", (e) => {
   if (e.target === saveFavoriteModal) closeSaveFavoriteModalFn();
 });
+helpModal.addEventListener("click", (e) => {
+  if (e.target === helpModal) closeHelpModalFn();
+});
+
+// Help modal
+helpBtn.addEventListener("click", openHelpModal);
+closeHelpModal.addEventListener("click", closeHelpModalFn);
+closeHelpModalBtn.addEventListener("click", closeHelpModalFn);
 
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
@@ -945,6 +971,17 @@ document.addEventListener("keydown", (e) => {
       closeSaveFavoriteModalFn();
       return;
     }
+    if (helpModal.classList.contains("show")) {
+      closeHelpModalFn();
+      return;
+    }
+  }
+  
+  // ?: Show help (only if not in input field)
+  if (e.key === "?" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+    e.preventDefault();
+    openHelpModal();
+    return;
   }
   
   // T: Toggle theme (only if not in input field)
