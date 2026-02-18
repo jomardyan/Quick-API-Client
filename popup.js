@@ -34,8 +34,35 @@ const addHeaderBtn = document.getElementById("addHeaderBtn");
 const clearBtn = document.getElementById("clearBtn");
 const toastEl = document.getElementById("toast");
 
+// Favorites
+const favoriteSelect = document.getElementById("favoriteSelect");
+const saveFavoriteBtn = document.getElementById("saveFavoriteBtn");
+const deleteFavoriteBtn = document.getElementById("deleteFavoriteBtn");
+const saveFavoriteModal = document.getElementById("saveFavoriteModal");
+const favoriteName = document.getElementById("favoriteName");
+const confirmSaveFavoriteBtn = document.getElementById("confirmSaveFavoriteBtn");
+const cancelSaveFavoriteBtn = document.getElementById("cancelSaveFavoriteBtn");
+const closeSaveFavoriteModal = document.getElementById("closeSaveFavoriteModal");
+
+// Auth
+const authTemplateBtn = document.getElementById("authTemplateBtn");
+const authModal = document.getElementById("authModal");
+const authType = document.getElementById("authType");
+const applyAuthBtn = document.getElementById("applyAuthBtn");
+const cancelAuthBtn = document.getElementById("cancelAuthBtn");
+const closeAuthModal = document.getElementById("closeAuthModal");
+const bearerToken = document.getElementById("bearerToken");
+const basicUsername = document.getElementById("basicUsername");
+const basicPassword = document.getElementById("basicPassword");
+const apiKeyName = document.getElementById("apiKeyName");
+const apiKeyValue = document.getElementById("apiKeyValue");
+const bearerFields = document.getElementById("bearerFields");
+const basicFields = document.getElementById("basicFields");
+const apikeyFields = document.getElementById("apikeyFields");
+
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
+let favorites = [];
 
 const PRESETS = {
   jsonplaceholder: {
@@ -215,7 +242,9 @@ function loadOptions() {
     chrome.storage.sync.get("options", ({ options }) => {
       currentOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
       maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
+      favorites = currentOptions.favorites || [];
       applyTheme(currentOptions.theme);
+      renderFavorites();
       chrome.storage.local.get("history", ({ history }) => {
         historyItems = history || [];
         renderHistory();
@@ -328,6 +357,194 @@ function renderHistory() {
   });
 }
 
+function renderFavorites() {
+  favoriteSelect.innerHTML = "";
+  if (!favorites || favorites.length === 0) {
+    favoriteSelect.innerHTML = '<option value="">No favorites saved yet</option>';
+    return;
+  }
+  favoriteSelect.innerHTML = '<option value="">Select a favorite…</option>';
+  favorites.forEach((fav, idx) => {
+    const option = document.createElement("option");
+    option.value = idx;
+    option.textContent = fav.name;
+    favoriteSelect.appendChild(option);
+  });
+}
+
+function saveFavorite(name) {
+  const method = methodEl.value;
+  const query = readKV(queryListEl);
+  const headers = readKV(headersListEl);
+  const url = urlEl.value;
+  const body = bodyEl.value;
+  
+  const favorite = { name, method, url, query, headers, body };
+  favorites.push(favorite);
+  
+  chrome.storage.sync.get("options", ({ options }) => {
+    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
+    chrome.storage.sync.set({ options: newOptions }, () => {
+      renderFavorites();
+      showToast("Favorite saved");
+    });
+  });
+}
+
+function applyFavorite() {
+  const idx = favoriteSelect.value;
+  if (!idx || !favorites[idx]) return;
+  
+  const fav = favorites[idx];
+  methodEl.value = fav.method;
+  urlEl.value = fav.url;
+  queryListEl.innerHTML = "";
+  headersListEl.innerHTML = "";
+  (fav.query?.length ? fav.query : [{}]).forEach(({ key = "", value = "" }) =>
+    createKVRow(queryListEl, key, value)
+  );
+  (fav.headers?.length ? fav.headers : [{}]).forEach(({ key = "", value = "" }) =>
+    createKVRow(headersListEl, key, value)
+  );
+  bodyEl.value = fav.body || "";
+  updatePreview();
+  saveState();
+}
+
+function deleteFavorite() {
+  const idx = favoriteSelect.value;
+  if (!idx || !favorites[idx]) {
+    showToast("Select a favorite to delete");
+    return;
+  }
+  
+  if (!confirm(`Delete "${favorites[idx].name}"?`)) return;
+  
+  favorites.splice(idx, 1);
+  chrome.storage.sync.get("options", ({ options }) => {
+    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
+    chrome.storage.sync.set({ options: newOptions }, () => {
+      renderFavorites();
+      showToast("Favorite deleted");
+    });
+  });
+}
+
+function openAuthModal() {
+  authModal.classList.add("show");
+  authType.focus();
+  // Trap focus in modal
+  document.body.style.overflow = "hidden";
+}
+
+function closeAuthModalFn() {
+  authModal.classList.remove("show");
+  document.body.style.overflow = "";
+  // Clear inputs
+  bearerToken.value = "";
+  basicUsername.value = "";
+  basicPassword.value = "";
+  apiKeyName.value = "";
+  apiKeyValue.value = "";
+  authTemplateBtn.focus();
+}
+
+function openSaveFavoriteModal() {
+  saveFavoriteModal.classList.add("show");
+  document.body.style.overflow = "hidden";
+  // Use setTimeout to ensure modal is visible before focusing
+  setTimeout(() => favoriteName.focus(), 100);
+}
+
+function closeSaveFavoriteModalFn() {
+  saveFavoriteModal.classList.remove("show");
+  document.body.style.overflow = "";
+  favoriteName.value = "";
+  saveFavoriteBtn.focus();
+}
+
+function applyAuthTemplate() {
+  const type = authType.value;
+  
+  if (type === "bearer") {
+    const token = bearerToken.value.trim();
+    if (!token) {
+      showToast("Enter a token");
+      return;
+    }
+    createKVRow(headersListEl, "Authorization", `Bearer ${token}`);
+    showToast("Bearer auth added");
+  } else if (type === "basic") {
+    const username = basicUsername.value.trim();
+    const password = basicPassword.value.trim();
+    if (!username || !password) {
+      showToast("Enter username and password");
+      return;
+    }
+    const encoded = btoa(`${username}:${password}`);
+    createKVRow(headersListEl, "Authorization", `Basic ${encoded}`);
+    showToast("Basic auth added");
+  } else if (type === "apikey-header") {
+    const keyName = apiKeyName.value.trim();
+    const keyValue = apiKeyValue.value.trim();
+    if (!keyName || !keyValue) {
+      showToast("Enter key name and value");
+      return;
+    }
+    createKVRow(headersListEl, keyName, keyValue);
+    showToast("API key added");
+  } else if (type === "apikey-query") {
+    const keyName = apiKeyName.value.trim();
+    const keyValue = apiKeyValue.value.trim();
+    if (!keyName || !keyValue) {
+      showToast("Enter key name and value");
+      return;
+    }
+    createKVRow(queryListEl, keyName, keyValue);
+    showToast("API key added");
+  }
+  
+  closeAuthModalFn();
+  updatePreview();
+  saveState();
+}
+
+function renderHistory() {
+  historyListEl.innerHTML = "";
+  if (currentOptions.historyEnabled === false || maxHistory === 0) {
+    historyListEl.innerHTML = `<p class="hint">History disabled in options.</p>`;
+    return;
+  }
+  if (!historyItems.length) {
+    historyListEl.innerHTML = `<p class="hint">No recent requests yet.</p>`;
+    return;
+  }
+  historyItems.forEach((item) => {
+    const el = document.createElement("div");
+    el.className = "history-item";
+    el.innerHTML = `
+      <div class="title">${item.method} ${item.url}</div>
+      <div class="meta">${item.timestamp || ""}</div>
+    `;
+    el.addEventListener("click", () => {
+      methodEl.value = item.method;
+      urlEl.value = item.url;
+      queryListEl.innerHTML = "";
+      headersListEl.innerHTML = "";
+      (item.query?.length ? item.query : [{}]).forEach(({ key = "", value = "" }) =>
+        createKVRow(queryListEl, key, value)
+      );
+      (item.headers?.length ? item.headers : [{}]).forEach(({ key = "", value = "" }) =>
+        createKVRow(headersListEl, key, value)
+      );
+      bodyEl.value = item.body || "";
+      updatePreview();
+      saveState();
+    });
+    historyListEl.appendChild(el);
+  });
+}
+
 async function sendRequest() {
   try {
     const method = methodEl.value;
@@ -338,6 +555,17 @@ async function sendRequest() {
     if (!finalUrl) {
       statusBadge.textContent = "Invalid URL";
       statusBadge.className = "badge err";
+      showToast("Enter a valid URL");
+      return;
+    }
+
+    // Validate URL format
+    try {
+      new URL(finalUrl);
+    } catch (err) {
+      statusBadge.textContent = "Invalid URL";
+      statusBadge.className = "badge err";
+      showToast("URL format is invalid");
       return;
     }
 
@@ -347,6 +575,7 @@ async function sendRequest() {
       statusBadge.textContent = "Permission denied";
       statusBadge.className = "badge err";
       responseMeta.textContent = "Allow host permission to send this request.";
+      showToast("Permission denied");
       return;
     }
 
@@ -369,6 +598,12 @@ async function sendRequest() {
       }
     }
 
+    // Show loading state
+    sendBtn.disabled = true;
+    sendBtnBottom.disabled = true;
+    sendBtn.classList.add("loading");
+    sendBtnBottom.classList.add("loading");
+    
     statusBadge.textContent = "Sending...";
     statusBadge.className = "badge muted";
     responseMeta.textContent = "";
@@ -381,11 +616,18 @@ async function sendRequest() {
         payload: { url: finalUrl, method, headers: headersObj, body, timeoutMs: currentOptions.timeoutMs || 15000 },
       },
       (res) => {
+        // Remove loading state
+        sendBtn.disabled = false;
+        sendBtnBottom.disabled = false;
+        sendBtn.classList.remove("loading");
+        sendBtnBottom.classList.remove("loading");
+        
         if (chrome.runtime.lastError) {
           statusBadge.textContent = "Error";
           statusBadge.className = "badge err";
           responseMeta.textContent = "Connection error";
           responseBody.textContent = chrome.runtime.lastError.message;
+          showToast("Connection error");
           return;
         }
         if (!res) {
@@ -393,6 +635,7 @@ async function sendRequest() {
           statusBadge.className = "badge err";
           responseMeta.textContent = "No response from background. Reload extension.";
           responseBody.textContent = "Try reloading the extension in chrome://extensions/";
+          showToast("Extension error");
           return;
         }
         if (!res.ok) {
@@ -402,6 +645,7 @@ async function sendRequest() {
           responseBody.textContent =
             res.error ||
             "Check the URL and try again. If using a non-standard API, it may have CORS restrictions.";
+          showToast("Request failed");
           return;
         }
 
@@ -437,6 +681,8 @@ async function sendRequest() {
           responseBody.textContent = res.body || "";
           responseBody.dataset.lang = "text";
         }
+        
+        showToast(statusClass === "ok" ? "Success" : "Request completed");
 
         if (currentOptions.historyEnabled !== false && maxHistory > 0) {
           const now = new Date();
@@ -464,6 +710,13 @@ async function sendRequest() {
     statusBadge.textContent = "Client Error";
     statusBadge.className = "badge err";
     responseBody.textContent = err.message;
+    showToast("Error occurred");
+    
+    // Remove loading state on error
+    sendBtn.disabled = false;
+    sendBtnBottom.disabled = false;
+    sendBtn.classList.remove("loading");
+    sendBtnBottom.classList.remove("loading");
   }
 }
 
@@ -628,6 +881,102 @@ clearHistoryBtn.addEventListener("click", clearHistory);
 copyHeadersBtn.addEventListener("click", () => copyText(responseHeaders.innerText));
 copyBodyBtn.addEventListener("click", () => copyText(responseBody.innerText));
 saveBodyBtn.addEventListener("click", downloadBody);
+
+// Favorites
+favoriteSelect.addEventListener("change", applyFavorite);
+saveFavoriteBtn.addEventListener("click", openSaveFavoriteModal);
+deleteFavoriteBtn.addEventListener("click", deleteFavorite);
+confirmSaveFavoriteBtn.addEventListener("click", () => {
+  const name = favoriteName.value.trim();
+  if (!name) {
+    showToast("Enter a name");
+    return;
+  }
+  saveFavorite(name);
+  closeSaveFavoriteModalFn();
+});
+cancelSaveFavoriteBtn.addEventListener("click", closeSaveFavoriteModalFn);
+closeSaveFavoriteModal.addEventListener("click", closeSaveFavoriteModalFn);
+
+// Auth
+authTemplateBtn.addEventListener("click", openAuthModal);
+applyAuthBtn.addEventListener("click", applyAuthTemplate);
+cancelAuthBtn.addEventListener("click", closeAuthModalFn);
+closeAuthModal.addEventListener("click", closeAuthModalFn);
+authType.addEventListener("change", () => {
+  bearerFields.style.display = "none";
+  basicFields.style.display = "none";
+  apikeyFields.style.display = "none";
+  
+  const type = authType.value;
+  if (type === "bearer") {
+    bearerFields.style.display = "flex";
+  } else if (type === "basic") {
+    basicFields.style.display = "flex";
+  } else if (type.startsWith("apikey")) {
+    apikeyFields.style.display = "flex";
+  }
+});
+
+// Close modals on backdrop click
+authModal.addEventListener("click", (e) => {
+  if (e.target === authModal) closeAuthModalFn();
+});
+saveFavoriteModal.addEventListener("click", (e) => {
+  if (e.target === saveFavoriteModal) closeSaveFavoriteModalFn();
+});
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  // Ctrl+Enter or Cmd+Enter: Send request
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    sendRequest();
+    return;
+  }
+  
+  // Escape: Close modals
+  if (e.key === "Escape") {
+    if (authModal.classList.contains("show")) {
+      closeAuthModalFn();
+      return;
+    }
+    if (saveFavoriteModal.classList.contains("show")) {
+      closeSaveFavoriteModalFn();
+      return;
+    }
+  }
+  
+  // T: Toggle theme (only if not in input field)
+  if (e.key === "t" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+    e.preventDefault();
+    cycleTheme();
+    return;
+  }
+  
+  // O: Open in new tab (only if not in input field)
+  if (e.key === "o" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+    e.preventDefault();
+    window.open("popup.html?tab=1", "_blank");
+    return;
+  }
+  
+  // Ctrl+K or Cmd+K: Focus URL field
+  if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    e.preventDefault();
+    urlEl.focus();
+    urlEl.select();
+    return;
+  }
+});
+
+// Enter key in modal inputs
+favoriteName.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    confirmSaveFavoriteBtn.click();
+  }
+});
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (currentOptions.theme === "system") {

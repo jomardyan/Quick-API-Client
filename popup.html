@@ -15,17 +15,30 @@
         <p class="sub">Compose and test HTTP requests without leaving the browser.</p>
       </div>
       <div class="actions">
-        <button id="sendBtn" class="primary">Send</button>
-        <button id="copyCurlBtn" class="ghost">Copy cURL</button>
-        <button id="themeBtn" class="ghost" title="Toggle theme">Theme</button>
-        <a href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab">Open in tab</a>
+        <button id="sendBtn" class="primary" title="Send request (Ctrl+Enter)">Send</button>
+        <button id="copyCurlBtn" class="ghost" title="Copy as cURL">Copy cURL</button>
+        <button id="themeBtn" class="ghost" title="Toggle theme (T)">Theme</button>
+        <a href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab (O)">Open in tab</a>
       </div>
     </header>
 
     <section class="panel">
       <div class="row">
         <div class="label-inline">
-          <label for="presetSelect">Presets</label>
+          <label for="favoriteSelect">Favorites</label>
+          <div class="pill-actions">
+            <button id="saveFavoriteBtn" class="ghost small" title="Save current request">Save</button>
+            <button id="deleteFavoriteBtn" class="ghost small" title="Delete selected">Delete</button>
+          </div>
+        </div>
+        <select id="favoriteSelect">
+          <option value="">No favorites saved yet</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <div class="label-inline">
+          <label for="presetSelect">API Presets</label>
           <div class="pill-actions">
             <button id="applyPresetBtn" class="ghost small">Apply</button>
           </div>
@@ -62,7 +75,10 @@
           <button id="addQueryBtn" class="ghost small">Add param</button>
         </div>
         <div>
-          <label>Headers</label>
+          <div class="label-inline">
+            <label>Headers</label>
+            <button id="authTemplateBtn" class="ghost small" title="Add auth header">+ Auth</button>
+          </div>
           <div id="headers" class="kv-list"></div>
           <button id="addHeaderBtn" class="ghost small">Add header</button>
         </div>
@@ -119,10 +135,82 @@
     </section>
 
     <div class="footer-actions">
-      <button id="sendBtnBottom" class="primary full">Send</button>
+      <button id="sendBtnBottom" class="primary full" title="Send request (Ctrl+Enter)">Send</button>
     </div>
   </main>
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  
+  <!-- Auth Template Modal -->
+  <div id="authModal" class="modal" role="dialog" aria-labelledby="authModalTitle" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="authModalTitle">Add Authentication</h2>
+        <button id="closeAuthModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <label for="authType">Authentication Type</label>
+          <select id="authType">
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">Basic Auth</option>
+            <option value="apikey-header">API Key (Header)</option>
+            <option value="apikey-query">API Key (Query)</option>
+          </select>
+        </div>
+        <div id="bearerFields" class="auth-fields">
+          <div class="row">
+            <label for="bearerToken">Token</label>
+            <input id="bearerToken" type="text" placeholder="your-token-here">
+          </div>
+        </div>
+        <div id="basicFields" class="auth-fields" style="display:none">
+          <div class="row">
+            <label for="basicUsername">Username</label>
+            <input id="basicUsername" type="text" placeholder="username">
+          </div>
+          <div class="row">
+            <label for="basicPassword">Password</label>
+            <input id="basicPassword" type="password" placeholder="password">
+          </div>
+        </div>
+        <div id="apikeyFields" class="auth-fields" style="display:none">
+          <div class="row">
+            <label for="apiKeyName">Key Name</label>
+            <input id="apiKeyName" type="text" placeholder="X-API-Key or api_key">
+          </div>
+          <div class="row">
+            <label for="apiKeyValue">Key Value</label>
+            <input id="apiKeyValue" type="text" placeholder="your-api-key">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="applyAuthBtn" class="primary">Apply</button>
+        <button id="cancelAuthBtn" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Favorite Modal -->
+  <div id="saveFavoriteModal" class="modal" role="dialog" aria-labelledby="saveFavoriteTitle" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="saveFavoriteTitle">Save as Favorite</h2>
+        <button id="closeSaveFavoriteModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <label for="favoriteName">Name</label>
+          <input id="favoriteName" type="text" placeholder="My API Request" autofocus>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="confirmSaveFavoriteBtn" class="primary">Save</button>
+        <button id="cancelSaveFavoriteBtn" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="defaults.js"></script>
   <script src="popup.js"></script>
 </body>
