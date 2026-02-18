@@ -18,6 +18,7 @@
         <button id="sendBtn" class="primary" title="Send request (Ctrl+Enter)">Send</button>
         <button id="copyCurlBtn" class="ghost" title="Copy as cURL">Copy cURL</button>
         <button id="themeBtn" class="ghost" title="Toggle theme (T)">Theme</button>
+        <button id="helpBtn" class="ghost" title="Keyboard shortcuts (?)">?</button>
         <a href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab (O)">Open in tab</a>
       </div>
     </header>
@@ -207,6 +208,48 @@
       <div class="modal-footer">
         <button id="confirmSaveFavoriteBtn" class="primary">Save</button>
         <button id="cancelSaveFavoriteBtn" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Help Modal -->
+  <div id="helpModal" class="modal" role="dialog" aria-labelledby="helpModalTitle" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="helpModalTitle">Keyboard Shortcuts</h2>
+        <button id="closeHelpModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcuts-list">
+          <div class="shortcut-item">
+            <kbd>Ctrl+Enter</kbd>
+            <span>Send request</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl+K</kbd>
+            <span>Focus URL field</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>T</kbd>
+            <span>Toggle theme</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>O</kbd>
+            <span>Open in new tab</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Esc</kbd>
+            <span>Close modals</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>?</kbd>
+            <span>Show this help</span>
+          </div>
+        </div>
+        <p class="hint" style="margin-top: 12px;">On Mac, use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd></p>
+      </div>
+      <div class="modal-footer">
+        <button id="closeHelpModalBtn" class="primary">Got it</button>
       </div>
     </div>
   </div>

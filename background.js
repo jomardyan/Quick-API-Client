@@ -13,6 +13,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   (async () => {
     try {
+      // Validate URL
+      try {
+        new URL(url);
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: "Invalid URL format",
+        });
+        return;
+      }
+
       const fetchOptions = {
         method,
         headers,
@@ -44,12 +55,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       });
     } catch (err) {
       console.error('API request error:', err);
+      const elapsed = Math.round(performance.now() - started);
       sendResponse({
         ok: false,
         error:
           err.name === "AbortError"
-            ? `Timed out after ${Math.round(effectiveTimeout / 1000)}s`
-            : err.message,
+            ? `Request timed out after ${Math.round(effectiveTimeout / 1000)}s`
+            : err.name === "TypeError" && err.message.includes("fetch")
+            ? "Network error: Unable to reach the server. Check your connection or the URL."
+            : err.message || "Unknown error occurred",
+        elapsed,
       });
     } finally {
       clearTimeout(timeout);
@@ -58,3 +73,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true; // keep the message channel open for async response
 });
+
+// Log extension startup
+if (DEBUG_LOGGING) {
+  console.log("Quick API Client: Background service worker started");
+}
