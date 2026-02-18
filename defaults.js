@@ -9,6 +9,7 @@
     timeoutMs: 15000,
     historySize: 8,
     historyEnabled: true,
+    favorites: [],
   };
 
   function clampHistorySize(size) {
