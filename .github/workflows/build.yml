@@ -1,0 +1,251 @@
+name: Build & Package Extension
+
+# Runs on every PR, every push to main, and any version tag (e.g. v1.2.3).
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    # contents: write is required only for creating GitHub Releases on tag builds.
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Package-manager detection ─────────────────────────────────────────────
+      # Checks for lockfiles in priority order: pnpm → yarn → npm → none.
+      - name: Detect package manager
+        id: pkg
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            MGR="pnpm"
+            INSTALL="pnpm install --frozen-lockfile"
+          elif [ -f "yarn.lock" ]; then
+            MGR="yarn"
+            INSTALL="yarn install --frozen-lockfile"
+          elif [ -f "package-lock.json" ]; then
+            MGR="npm"
+            INSTALL="npm ci"
+          elif [ -f "package.json" ]; then
+            MGR="npm"
+            INSTALL="npm install"
+          else
+            MGR="none"
+            INSTALL=""
+          fi
+          echo "manager=$MGR" >> "$GITHUB_OUTPUT"
+          echo "install_cmd=$INSTALL" >> "$GITHUB_OUTPUT"
+          echo "Detected package manager: $MGR"
+
+      # ── Node.js setup (skipped when no package manager is needed) ─────────────
+      - name: Setup Node.js
+        if: steps.pkg.outputs.manager != 'none'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          # Built-in caching works for npm and yarn; pnpm uses Corepack instead.
+          cache: ${{ (steps.pkg.outputs.manager == 'npm' || steps.pkg.outputs.manager == 'yarn') && steps.pkg.outputs.manager || '' }}
+
+      # Corepack ships with Node.js and activates pnpm / modern yarn without a
+      # separate install step.
+      - name: Enable Corepack (pnpm / yarn)
+        if: steps.pkg.outputs.manager == 'pnpm' || steps.pkg.outputs.manager == 'yarn'
+        run: corepack enable
+
+      - name: Install dependencies
+        if: steps.pkg.outputs.manager != 'none'
+        run: ${{ steps.pkg.outputs.install_cmd }}
+
+      # ── Build step ────────────────────────────────────────────────────────────
+      # Prefers the 'build' script; falls back to other common names.
+      # If no package.json exists (e.g. this repo), the extension is pre-built.
+      - name: Build extension
+        id: build
+        run: |
+          if [ -f "package.json" ]; then
+            SCRIPT=$(node -e "
+              const s = require('./package.json').scripts || {};
+              const candidates = ['build','build:extension','build:prod','dist','bundle'];
+              const found = candidates.find(k => s[k]);
+              console.log(found || 'none');
+            ")
+            if [ "$SCRIPT" != "none" ]; then
+              case "${{ steps.pkg.outputs.manager }}" in
+                pnpm) CMD="pnpm run $SCRIPT" ;;
+                yarn) CMD="yarn $SCRIPT" ;;
+                *)    CMD="npm run $SCRIPT" ;;
+              esac
+              echo "cmd=$CMD" >> "$GITHUB_OUTPUT"
+              echo "Running build: $CMD"
+              $CMD
+            else
+              echo "cmd=none (no matching build script in package.json)" >> "$GITHUB_OUTPUT"
+              echo "No build script found; using pre-built files."
+            fi
+          else
+            echo "cmd=none (no package.json)" >> "$GITHUB_OUTPUT"
+            echo "No package.json found; extension files are pre-built at repo root."
+          fi
+
+      # ── Extension directory detection ─────────────────────────────────────────
+      # Priority: dist/ → build/ → extension/ → src/ → repo root → search.
+      - name: Detect extension directory
+        id: ext
+        run: |
+          if   [ -f "dist/manifest.json" ];      then DIR="dist"
+          elif [ -f "build/manifest.json" ];     then DIR="build"
+          elif [ -f "extension/manifest.json" ]; then DIR="extension"
+          elif [ -f "src/manifest.json" ];       then DIR="src"
+          elif [ -f "manifest.json" ];           then DIR="."
+          else
+            FOUND=$(find . -name "manifest.json" \
+              -not -path "./.git/*" \
+              -not -path "./node_modules/*" | head -1)
+            if [ -z "$FOUND" ]; then
+              echo "ERROR: manifest.json not found anywhere in the repo." >&2
+              exit 1
+            fi
+            DIR=$(dirname "$FOUND")
+          fi
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "Extension directory: $DIR"
+
+      # ── MV3 sanity check ──────────────────────────────────────────────────────
+      # Fails fast if manifest.json is missing, not MV3, or lacks name/version.
+      - name: Validate manifest.json (MV3)
+        env:
+          MANIFEST: ${{ steps.ext.outputs.dir }}/manifest.json
+        run: |
+          [ -f "$MANIFEST" ] || { echo "ERROR: $MANIFEST not found" >&2; exit 1; }
+
+          MV=$(jq -r '.manifest_version' "$MANIFEST")
+          [ "$MV" = "3" ] || { echo "ERROR: manifest_version=$MV (expected 3)" >&2; exit 1; }
+
+          NAME=$(jq -r '.name // empty' "$MANIFEST")
+          [ -n "$NAME" ] || { echo "ERROR: 'name' missing in manifest.json" >&2; exit 1; }
+
+          VERSION=$(jq -r '.version // empty' "$MANIFEST")
+          [ -n "$VERSION" ] || { echo "ERROR: 'version' missing in manifest.json" >&2; exit 1; }
+
+          echo "✓ manifest_version : $MV"
+          echo "✓ name             : $NAME"
+          echo "✓ version          : $VERSION"
+
+      # ── Version consistency check (non-tag builds) ────────────────────────────
+      # Verifies manifest.json has a valid semver-like version string.
+      # (No package.json in this repo, so cross-file consistency is N/A.)
+      - name: Verify version consistency
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        env:
+          MANIFEST: ${{ steps.ext.outputs.dir }}/manifest.json
+        run: |
+          VERSION=$(jq -r '.version // empty' "$MANIFEST")
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "ERROR: manifest.json version '$VERSION' is not valid semver (X.Y.Z)." >&2
+            exit 1
+          fi
+          echo "Version $VERSION is valid."
+
+      # ── Version sync from tag (tag builds only) ───────────────────────────────
+      # Updates manifest.json to match the pushed tag (e.g. v1.2.3 → "1.2.3").
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MANIFEST: ${{ steps.ext.outputs.dir }}/manifest.json
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Syncing extension version → $TAG_VERSION"
+          jq --arg v "$TAG_VERSION" '.version = $v' "$MANIFEST" > /tmp/_manifest.json
+          mv /tmp/_manifest.json "$MANIFEST"
+          echo "manifest.json version is now $TAG_VERSION"
+
+      # ── artifact-info.txt ─────────────────────────────────────────────────────
+      - name: Write artifact-info.txt
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            REF_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            REF_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+          {
+            echo "commit:              $GITHUB_SHA"
+            echo "branch_or_tag:       $REF_NAME"
+            echo "build_command:       ${{ steps.build.outputs.cmd }}"
+            echo "extension_directory: ${{ steps.ext.outputs.dir }}"
+            echo "package_manager:     ${{ steps.pkg.outputs.manager }}"
+          } > artifact-info.txt
+          cat artifact-info.txt
+
+      # ── Package ZIPs ──────────────────────────────────────────────────────────
+      # Files are staged in a temp dir so the ZIP root is flat (manifest.json at
+      # the top level, not inside a sub-folder). No nested ZIPs are included.
+      - name: Package chrome-extension.zip and edge-extension.zip
+        run: |
+          EXT_DIR="${{ steps.ext.outputs.dir }}"
+          STAGE=$(mktemp -d)
+
+          # Copy only extension files; exclude VCS, CI, docs, and existing ZIPs.
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='*.zip' \
+            --exclude='*.md' \
+            --exclude='LICENSE' \
+            --exclude='artifact-info.txt' \
+            "$EXT_DIR/" "$STAGE/"
+
+          echo "=== Staged extension files ==="
+          ls -la "$STAGE/"
+
+          # cd into stage so every entry in the ZIP is at the root level.
+          (cd "$STAGE" && zip -qr "$GITHUB_WORKSPACE/chrome-extension.zip" .)
+          (cd "$STAGE" && zip -qr "$GITHUB_WORKSPACE/edge-extension.zip" .)
+
+          echo "=== chrome-extension.zip contents ==="
+          unzip -l "$GITHUB_WORKSPACE/chrome-extension.zip"
+
+          rm -rf "$STAGE"
+
+      # ── Upload artifacts ──────────────────────────────────────────────────────
+      - name: Upload chrome-extension.zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: chrome-extension.zip
+
+      - name: Upload edge-extension.zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-extension
+          path: edge-extension.zip
+
+      - name: Upload artifact-info.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-info
+          path: artifact-info.txt
+
+      # ── GitHub Release (tag builds only) ──────────────────────────────────────
+      # Uses the built-in GITHUB_TOKEN — no extra secrets required.
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG" \
+            chrome-extension.zip \
+            edge-extension.zip \
+            --title "Release $TAG" \
+            --generate-notes
