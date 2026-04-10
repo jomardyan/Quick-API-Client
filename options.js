@@ -21,6 +21,18 @@ const saveBtn = document.getElementById("saveBtn");
 const resetBtn = document.getElementById("resetBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 
+// Environment elements
+const envNameSelect = document.getElementById("envNameSelect");
+const envEditor = document.getElementById("envEditor");
+const envNameInput = document.getElementById("envNameInput");
+const envVarsInput = document.getElementById("envVarsInput");
+const addEnvBtn = document.getElementById("addEnvBtn");
+const deleteEnvBtn = document.getElementById("deleteEnvBtn");
+const saveEnvBtn = document.getElementById("saveEnvBtn");
+
+let environments = [];
+let selectedEnvIdx = -1;
+
 function applyTheme(theme) {
   const resolved =
     theme === "system"
@@ -82,38 +94,147 @@ function loadOptions() {
 function saveOptions() {
   const timeoutMs = Math.max(1000, Math.min(60000, Number(timeoutSeconds.value) * 1000));
   const size = clampHistorySize(historySize.value);
-  const options = {
-    theme: themeSelect.value,
-    defaultUrl: defaultUrl.value.trim(),
-    defaultHeaders: parseKVText(defaultHeaders.value),
-    defaultQuery: parseKVText(defaultQuery.value),
-    defaultBody: defaultBody.value,
-    restoreLast: restoreLast.checked,
-    timeoutMs,
-    historySize: size,
-    historyEnabled: historyEnabled.checked,
-  };
-  chrome.storage.sync.set({ options }, () => {
-    status.textContent = "Saved.";
-    applyTheme(options.theme);
-    setTimeout(() => (status.textContent = ""), 1800);
+  chrome.storage.sync.get("options", ({ options }) => {
+    const existing = options || {};
+    const newOptions = {
+      ...DEFAULT_OPTIONS,
+      ...existing,
+      theme: themeSelect.value,
+      defaultUrl: defaultUrl.value.trim(),
+      defaultHeaders: parseKVText(defaultHeaders.value),
+      defaultQuery: parseKVText(defaultQuery.value),
+      defaultBody: defaultBody.value,
+      restoreLast: restoreLast.checked,
+      timeoutMs,
+      historySize: size,
+      historyEnabled: historyEnabled.checked,
+    };
+    chrome.storage.sync.set({ options: newOptions }, () => {
+      if (chrome.runtime.lastError) {
+        status.textContent = "Save failed: " + chrome.runtime.lastError.message;
+        return;
+      }
+      status.textContent = "Saved.";
+      applyTheme(newOptions.theme);
+      setTimeout(() => (status.textContent = ""), 1800);
+    });
   });
 }
 
 function resetOptions() {
-  chrome.storage.sync.set({ options: DEFAULT_OPTIONS }, loadOptions);
-  status.textContent = "Reset to defaults.";
-  setTimeout(() => (status.textContent = ""), 1800);
+  chrome.storage.sync.set({ options: DEFAULT_OPTIONS }, () => {
+    loadOptions();
+    status.textContent = "Reset to defaults.";
+    setTimeout(() => (status.textContent = ""), 1800);
+  });
 }
 
 function clearHistory() {
   chrome.storage.local.set({ history: [] }, () => {
+    if (chrome.runtime.lastError) {
+      status.textContent = "Error: " + chrome.runtime.lastError.message;
+      return;
+    }
     status.textContent = "History cleared.";
     setTimeout(() => (status.textContent = ""), 1800);
   });
 }
 
-document.addEventListener("DOMContentLoaded", loadOptions);
+// ── Environment management ────────────────────────────────────────────────────
+
+function loadEnvironments() {
+  chrome.storage.sync.get("environments", ({ environments: stored }) => {
+    environments = stored || [];
+    renderEnvSelect();
+  });
+}
+
+function saveCurrentEnv() {
+  if (selectedEnvIdx < 0 || selectedEnvIdx >= environments.length) return;
+  environments[selectedEnvIdx].name = envNameInput.value.trim() || environments[selectedEnvIdx].name;
+  environments[selectedEnvIdx].vars = parseKVText(envVarsInput.value);
+  persistEnvironments();
+}
+
+function persistEnvironments(callback) {
+  chrome.storage.sync.set({ environments }, () => {
+    if (chrome.runtime.lastError) {
+      status.textContent = "Env save failed: " + chrome.runtime.lastError.message;
+      return;
+    }
+    if (callback) callback();
+  });
+}
+
+function renderEnvSelect() {
+  envNameSelect.innerHTML = "";
+  if (!environments.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No environments yet — click + New";
+    envNameSelect.appendChild(opt);
+    envEditor.style.display = "none";
+    selectedEnvIdx = -1;
+    return;
+  }
+  environments.forEach((env, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx;
+    opt.textContent = env.name || `Environment ${idx + 1}`;
+    envNameSelect.appendChild(opt);
+  });
+  if (selectedEnvIdx < 0 || selectedEnvIdx >= environments.length) {
+    selectedEnvIdx = 0;
+  }
+  envNameSelect.value = selectedEnvIdx;
+  renderEnvEditor();
+}
+
+function renderEnvEditor() {
+  if (selectedEnvIdx < 0 || selectedEnvIdx >= environments.length) {
+    envEditor.style.display = "none";
+    return;
+  }
+  const env = environments[selectedEnvIdx];
+  envNameInput.value = env.name || "";
+  envVarsInput.value = kvToDisplay(env.vars || []);
+  envEditor.style.display = "flex";
+}
+
+addEnvBtn.addEventListener("click", () => {
+  environments.push({ name: `Environment ${environments.length + 1}`, vars: [] });
+  selectedEnvIdx = environments.length - 1;
+  persistEnvironments(() => {
+    renderEnvSelect();
+    envNameInput.focus();
+  });
+});
+
+deleteEnvBtn.addEventListener("click", () => {
+  if (selectedEnvIdx < 0 || !environments.length) return;
+  const name = environments[selectedEnvIdx].name;
+  if (!confirm(`Delete environment "${name}"?`)) return;
+  environments.splice(selectedEnvIdx, 1);
+  selectedEnvIdx = Math.min(selectedEnvIdx, environments.length - 1);
+  persistEnvironments(renderEnvSelect);
+});
+
+saveEnvBtn.addEventListener("click", () => {
+  saveCurrentEnv();
+  renderEnvSelect();
+  status.textContent = "Environment saved.";
+  setTimeout(() => (status.textContent = ""), 1800);
+});
+
+envNameSelect.addEventListener("change", () => {
+  selectedEnvIdx = Number(envNameSelect.value);
+  renderEnvEditor();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadOptions();
+  loadEnvironments();
+});
 saveBtn.addEventListener("click", saveOptions);
 resetBtn.addEventListener("click", resetOptions);
 clearHistoryBtn.addEventListener("click", clearHistory);

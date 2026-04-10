@@ -36,6 +36,7 @@ const toastEl = document.getElementById("toast");
 
 // Favorites
 const favoriteSelect = document.getElementById("favoriteSelect");
+const loadFavoriteBtn = document.getElementById("loadFavoriteBtn");
 const saveFavoriteBtn = document.getElementById("saveFavoriteBtn");
 const deleteFavoriteBtn = document.getElementById("deleteFavoriteBtn");
 const saveFavoriteModal = document.getElementById("saveFavoriteModal");
@@ -66,9 +67,99 @@ const helpModal = document.getElementById("helpModal");
 const closeHelpModal = document.getElementById("closeHelpModal");
 const closeHelpModalBtn = document.getElementById("closeHelpModalBtn");
 
+// Cancel in-flight request
+const cancelBtn = document.getElementById("cancelBtn");
+
+// Environment selector
+const envSelect = document.getElementById("envSelect");
+const envVarCount = document.getElementById("envVarCount");
+
+// GraphQL mode
+const gqlToggleBtn = document.getElementById("gqlToggleBtn");
+const gqlVarsRow = document.getElementById("gqlVarsRow");
+const gqlVariables = document.getElementById("gqlVariables");
+
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
 let favorites = [];
+
+// ── Debounce utility ──────────────────────────────────────────────────────────
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+// Debounced versions used by keystroke handlers to avoid excessive storage I/O
+const debouncedSaveState = debounce(() => saveState(), 300);
+const debouncedUpdatePreview = debounce(() => updatePreview(), 150);
+
+// ── In-flight request state ───────────────────────────────────────────────────
+let isRequestInFlight = false;
+let activeRequestId = null;
+let swGuardTimeoutId = null;
+
+// ── GraphQL mode ──────────────────────────────────────────────────────────────
+let gqlMode = false;
+
+function setGqlMode(enabled) {
+  gqlMode = enabled;
+  gqlToggleBtn.classList.toggle("primary", enabled);
+  gqlToggleBtn.classList.toggle("ghost", !enabled);
+  gqlVarsRow.style.display = enabled ? "" : "none";
+  if (enabled) {
+    // Force POST and set Content-Type when activating GraphQL
+    methodEl.value = "POST";
+    // Ensure Content-Type: application/json header exists
+    const existing = readKV(headersListEl);
+    const hasCT = existing.some(({ key }) => key.toLowerCase() === "content-type");
+    if (!hasCT) createKVRow(headersListEl, "Content-Type", "application/json");
+  }
+  updatePreview();
+  saveState();
+}
+
+// ── Environment variable substitution ────────────────────────────────────────
+
+/**
+ * Replace {{VAR_NAME}} tokens with values from the active environment.
+ * Unresolved tokens are left as-is so the user sees the problem clearly.
+ */
+function substituteVars(text, vars) {
+  if (!text || !vars.length) return text;
+  return text.replace(/\{\{([^}]+)\}\}/g, (match, name) => {
+    const entry = vars.find((v) => v.key === name.trim());
+    return entry !== undefined ? entry.value : match;
+  });
+}
+
+function getActiveEnvVars() {
+  const envName = currentOptions.activeEnvironment || "";
+  if (!envName || !currentEnvironments.length) return [];
+  const env = currentEnvironments.find((e) => e.name === envName);
+  return env ? (env.vars || []) : [];
+}
+
+function renderEnvSelect() {
+  const current = envSelect.value;
+  envSelect.innerHTML = '<option value="">No environment</option>';
+  currentEnvironments.forEach((env) => {
+    const opt = document.createElement("option");
+    opt.value = env.name;
+    opt.textContent = env.name;
+    envSelect.appendChild(opt);
+  });
+  // Restore prior selection or active env from options
+  const desired = current || currentOptions.activeEnvironment || "";
+  envSelect.value = desired;
+  updateEnvVarCount();
+}
+
+function updateEnvVarCount() {
+  const vars = getActiveEnvVars();
+  envVarCount.textContent = vars.length ? `${vars.length} var${vars.length !== 1 ? "s" : ""} active` : "";
+}
 
 const PRESETS = {
   jsonplaceholder: {
@@ -109,6 +200,7 @@ const PRESETS = {
 
 let currentOptions = { ...DEFAULT_OPTIONS };
 let historyItems = [];
+let currentEnvironments = [];
 
 function createKVRow(container, key = "", value = "") {
   const row = document.createElement("div");
@@ -134,8 +226,8 @@ function createKVRow(container, key = "", value = "") {
   [keyInput, valInput].forEach((input) =>
     ["input", "change"].forEach((evt) =>
       input.addEventListener(evt, () => {
-        updatePreview();
-        saveState();
+        debouncedUpdatePreview();
+        debouncedSaveState();
       })
     )
   );
@@ -224,6 +316,8 @@ function saveState() {
     query: readKV(queryListEl),
     headers: readKV(headersListEl),
     body: bodyEl.value,
+    gqlMode,
+    gqlVariables: gqlVariables.value,
   };
   chrome.storage.local.set({ lastRequest: state });
 }
@@ -245,12 +339,14 @@ function applyTheme(themeChoice) {
 
 function loadOptions() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get("options", ({ options }) => {
+    chrome.storage.sync.get(["options", "environments"], ({ options, environments }) => {
       currentOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
       maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
       favorites = currentOptions.favorites || [];
+      currentEnvironments = environments || [];
       applyTheme(currentOptions.theme);
       renderFavorites();
+      renderEnvSelect();
       chrome.storage.local.get("history", ({ history }) => {
         historyItems = history || [];
         renderHistory();
@@ -286,6 +382,10 @@ function restoreState() {
     headers.forEach(({ key = "", value = "" }) => createKVRow(headersListEl, key, value));
 
     bodyEl.value = base.body || "";
+    if (base.gqlMode) {
+      setGqlMode(true);
+      gqlVariables.value = base.gqlVariables || "";
+    }
     updatePreview();
   });
 }
@@ -304,7 +404,9 @@ function updatePreview() {
   ].filter(Boolean);
 
   requestPreviewEl.textContent = parts.join("\n\n");
-  document.getElementById("bodyHint").textContent = isBodyless(method)
+  document.getElementById("bodyHint").textContent = gqlMode
+    ? "GraphQL query string"
+    : isBodyless(method)
     ? "Ignored for GET/HEAD"
     : "Sends raw text; JSON is auto-formatted if valid";
 }
@@ -324,42 +426,6 @@ function ensureOriginPermission(origin) {
       if (has) return resolve(true);
       chrome.permissions.request({ origins: [origin] }, (granted) => resolve(Boolean(granted)));
     });
-  });
-}
-
-function renderHistory() {
-  historyListEl.innerHTML = "";
-  if (currentOptions.historyEnabled === false || maxHistory === 0) {
-    historyListEl.innerHTML = `<p class="hint">History disabled in options.</p>`;
-    return;
-  }
-  if (!historyItems.length) {
-    historyListEl.innerHTML = `<p class="hint">No recent requests yet.</p>`;
-    return;
-  }
-  historyItems.forEach((item) => {
-    const el = document.createElement("div");
-    el.className = "history-item";
-    el.innerHTML = `
-      <div class="title">${item.method} ${item.url}</div>
-      <div class="meta">${item.timestamp || ""}</div>
-    `;
-    el.addEventListener("click", () => {
-      methodEl.value = item.method;
-      urlEl.value = item.url;
-      queryListEl.innerHTML = "";
-      headersListEl.innerHTML = "";
-      (item.query?.length ? item.query : [{}]).forEach(({ key = "", value = "" }) =>
-        createKVRow(queryListEl, key, value)
-      );
-      (item.headers?.length ? item.headers : [{}]).forEach(({ key = "", value = "" }) =>
-        createKVRow(headersListEl, key, value)
-      );
-      bodyEl.value = item.body || "";
-      updatePreview();
-      saveState();
-    });
-    historyListEl.appendChild(el);
   });
 }
 
@@ -384,15 +450,24 @@ function saveFavorite(name) {
   const headers = readKV(headersListEl);
   const url = urlEl.value;
   const body = bodyEl.value;
-  
+
+  // Warn if any header looks like a credential (stored plaintext in sync storage)
+  const sensitivePatterns = ["authorization", "x-api-key", "api-key", "x-auth-token", "x-access-token"];
+  const hasCredential = headers.some(({ key }) => sensitivePatterns.includes(key.toLowerCase()));
+
   const favorite = { name, method, url, query, headers, body };
   favorites.push(favorite);
-  
+
   chrome.storage.sync.get("options", ({ options }) => {
     const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
     chrome.storage.sync.set({ options: newOptions }, () => {
+      if (chrome.runtime.lastError) {
+        favorites.pop(); // roll back optimistic push
+        showToast("Save failed: storage quota exceeded");
+        return;
+      }
       renderFavorites();
-      showToast("Favorite saved");
+      showToast(hasCredential ? "Saved ⚠ contains credentials" : "Favorite saved");
     });
   });
 }
@@ -432,6 +507,10 @@ function deleteFavorite() {
   chrome.storage.sync.get("options", ({ options }) => {
     const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
     chrome.storage.sync.set({ options: newOptions }, () => {
+      if (chrome.runtime.lastError) {
+        showToast("Delete failed: " + chrome.runtime.lastError.message);
+        return;
+      }
       renderFavorites();
       showToast("Favorite deleted");
     });
@@ -509,7 +588,9 @@ function applyAuthTemplate() {
       return;
     }
     try {
-      const encoded = btoa(`${username}:${password}`);
+      // Use encodeURIComponent/unescape to safely handle non-ASCII characters
+      // before passing to btoa, per RFC 7617 UTF-8 encoding for Basic auth.
+      const encoded = btoa(unescape(encodeURIComponent(`${username}:${password}`)));
       createKVRow(headersListEl, "Authorization", `Basic ${encoded}`);
       showToast("Basic auth added");
     } catch (err) {
@@ -544,21 +625,35 @@ function applyAuthTemplate() {
 function renderHistory() {
   historyListEl.innerHTML = "";
   if (currentOptions.historyEnabled === false || maxHistory === 0) {
-    historyListEl.innerHTML = `<p class="hint">History disabled in options.</p>`;
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "History disabled in options.";
+    historyListEl.appendChild(hint);
     return;
   }
   if (!historyItems.length) {
-    historyListEl.innerHTML = `<p class="hint">No recent requests yet.</p>`;
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "No recent requests yet.";
+    historyListEl.appendChild(hint);
     return;
   }
   historyItems.forEach((item) => {
     const el = document.createElement("div");
     el.className = "history-item";
-    el.innerHTML = `
-      <div class="title">${item.method} ${item.url}</div>
-      <div class="meta">${item.timestamp || ""}</div>
-    `;
-    el.addEventListener("click", () => {
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "title";
+    titleEl.textContent = `${item.method} ${item.url}`;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = item.timestamp || "";
+
+    el.appendChild(titleEl);
+    el.appendChild(metaEl);
+
+    function loadHistoryItem() {
       methodEl.value = item.method;
       urlEl.value = item.url;
       queryListEl.innerHTML = "";
@@ -570,19 +665,72 @@ function renderHistory() {
         createKVRow(headersListEl, key, value)
       );
       bodyEl.value = item.body || "";
+      if (item.gqlMode) {
+        setGqlMode(true);
+        gqlVariables.value = item.gqlVariables || "";
+      } else {
+        setGqlMode(false);
+      }
       updatePreview();
       saveState();
+    }
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("role", "button");
+    el.addEventListener("click", loadHistoryItem);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        loadHistoryItem();
+      }
     });
     historyListEl.appendChild(el);
   });
 }
 
+// ── Request lifecycle helpers ─────────────────────────────────────────────────
+
+function clearSendingState() {
+  isRequestInFlight = false;
+  activeRequestId = null;
+  clearTimeout(swGuardTimeoutId);
+  swGuardTimeoutId = null;
+  sendBtn.disabled = false;
+  sendBtnBottom.disabled = false;
+  sendBtn.classList.remove("loading");
+  sendBtnBottom.classList.remove("loading");
+  cancelBtn.style.display = "none";
+}
+
+function cancelCurrentRequest() {
+  if (!isRequestInFlight) return;
+  if (activeRequestId) {
+    chrome.runtime.sendMessage({
+      type: "cancel-request",
+      payload: { requestId: activeRequestId },
+    });
+  }
+  clearSendingState();
+  statusBadge.textContent = "Cancelled";
+  statusBadge.className = "badge warn";
+  responseMeta.textContent = "Request cancelled by user.";
+  showToast("Request cancelled");
+}
+
 async function sendRequest() {
+  if (isRequestInFlight) return; // prevent concurrent sends
   try {
     const method = methodEl.value;
+    const envVars = getActiveEnvVars();
     const query = readKV(queryListEl);
     const headers = readKV(headersListEl);
-    const finalUrl = buildUrl(urlEl.value, query);
+
+    // Apply environment variable substitution to URL components before parsing
+    const rawUrl = substituteVars(urlEl.value, envVars);
+    const substitutedQuery = query.map(({ key, value }) => ({
+      key,
+      value: substituteVars(value, envVars),
+    }));
+    let finalUrl = buildUrl(rawUrl, substitutedQuery);
 
     if (!finalUrl) {
       statusBadge.textContent = "Invalid URL";
@@ -611,17 +759,35 @@ async function sendRequest() {
       return;
     }
 
+    // Apply env var substitution to header values
     const headersObj = headers.reduce((acc, { key, value }) => {
-      acc[key] = value;
+      acc[key] = substituteVars(value, envVars);
       return acc;
     }, {});
 
-    let body = bodyEl.value;
+    let body = substituteVars(bodyEl.value, envVars);
     if (isBodyless(method)) {
       body = undefined;
+    } else if (gqlMode) {
+      // In GraphQL mode, build the standard {query, variables} envelope
+      const query_str = body || "";
+      let variables = {};
+      const rawVars = substituteVars(gqlVariables.value.trim(), envVars);
+      if (rawVars) {
+        try {
+          variables = JSON.parse(rawVars);
+        } catch (err) {
+          statusBadge.textContent = "GQL Error";
+          statusBadge.className = "badge err";
+          showToast("GraphQL variables: invalid JSON");
+          return;
+        }
+      }
+      body = JSON.stringify({ query: query_str, variables });
+      headersObj["Content-Type"] = "application/json";
     } else if (
       headersObj["Content-Type"]?.includes("application/json") &&
-      body.trim()
+      body && body.trim()
     ) {
       try {
         body = JSON.stringify(JSON.parse(body));
@@ -630,30 +796,46 @@ async function sendRequest() {
       }
     }
 
-    // Show loading state
+    // Show loading state and mark in-flight
+    isRequestInFlight = true;
+    activeRequestId = crypto.randomUUID();
     sendBtn.disabled = true;
     sendBtnBottom.disabled = true;
     sendBtn.classList.add("loading");
     sendBtnBottom.classList.add("loading");
-    
+    cancelBtn.style.display = "";
+
     statusBadge.textContent = "Sending...";
     statusBadge.className = "badge muted";
     responseMeta.textContent = "";
     responseHeaders.textContent = "";
     responseBody.textContent = "";
 
+    // Guard: if the service worker is killed mid-request, the callback never fires.
+    // After timeout + 5 s we recover the UI instead of hanging forever.
+    const effectiveTimeout = currentOptions.timeoutMs || 15000;
+    swGuardTimeoutId = setTimeout(() => {
+      clearSendingState();
+      statusBadge.textContent = "SW Error";
+      statusBadge.className = "badge err";
+      responseMeta.textContent = "Background was restarted mid-request. Please try again.";
+      showToast("Try again — extension restarted");
+    }, effectiveTimeout + 5000);
+
     chrome.runtime.sendMessage(
       {
         type: "api-request",
-        payload: { url: finalUrl, method, headers: headersObj, body, timeoutMs: currentOptions.timeoutMs || 15000 },
+        payload: {
+          url: finalUrl,
+          method,
+          headers: headersObj,
+          body,
+          timeoutMs: effectiveTimeout,
+          requestId: activeRequestId,
+        },
       },
       (res) => {
-        // Remove loading state
-        sendBtn.disabled = false;
-        sendBtnBottom.disabled = false;
-        sendBtn.classList.remove("loading");
-        sendBtnBottom.classList.remove("loading");
-        
+        clearSendingState();
         if (chrome.runtime.lastError) {
           statusBadge.textContent = "Error";
           statusBadge.className = "badge err";
@@ -727,6 +909,8 @@ async function sendRequest() {
             headers,
             query,
             body: bodyEl.value,
+            gqlMode,
+            gqlVariables: gqlVariables.value,
             timestamp,
           };
           historyItems = [entry, ...historyItems].slice(0, maxHistory);
@@ -739,16 +923,11 @@ async function sendRequest() {
     saveState();
   } catch (err) {
     console.error("sendRequest error:", err);
+    clearSendingState();
     statusBadge.textContent = "Client Error";
     statusBadge.className = "badge err";
     responseBody.textContent = err.message;
     showToast("Error occurred");
-    
-    // Remove loading state on error
-    sendBtn.disabled = false;
-    sendBtnBottom.disabled = false;
-    sendBtn.classList.remove("loading");
-    sendBtnBottom.classList.remove("loading");
   }
 }
 
@@ -868,7 +1047,8 @@ function downloadBody() {
   a.href = url;
   a.download = "response.txt";
   a.click();
-  URL.revokeObjectURL(url);
+  // Defer revocation to allow the browser to initiate the download first
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 function showToast(message) {
@@ -889,8 +1069,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 ["input", "change"].forEach((evt) => {
   [methodEl, urlEl, bodyEl].forEach((el) =>
     el.addEventListener(evt, () => {
-      updatePreview();
-      saveState();
+      debouncedUpdatePreview();
+      debouncedSaveState();
     })
   );
 });
@@ -915,7 +1095,7 @@ copyBodyBtn.addEventListener("click", () => copyText(responseBody.innerText));
 saveBodyBtn.addEventListener("click", downloadBody);
 
 // Favorites
-favoriteSelect.addEventListener("change", applyFavorite);
+loadFavoriteBtn.addEventListener("click", applyFavorite);
 saveFavoriteBtn.addEventListener("click", openSaveFavoriteModal);
 deleteFavoriteBtn.addEventListener("click", deleteFavorite);
 confirmSaveFavoriteBtn.addEventListener("click", () => {
@@ -929,6 +1109,28 @@ confirmSaveFavoriteBtn.addEventListener("click", () => {
 });
 cancelSaveFavoriteBtn.addEventListener("click", closeSaveFavoriteModalFn);
 closeSaveFavoriteModal.addEventListener("click", closeSaveFavoriteModalFn);
+
+cancelBtn.addEventListener("click", cancelCurrentRequest);
+
+// GraphQL mode toggle
+gqlToggleBtn.addEventListener("click", () => setGqlMode(!gqlMode));
+
+// Update preview when GQL variables change
+gqlVariables.addEventListener("input", () => {
+  debouncedUpdatePreview();
+  debouncedSaveState();
+});
+
+// Environment selector
+envSelect.addEventListener("change", () => {
+  currentOptions.activeEnvironment = envSelect.value;
+  // Persist the active environment choice
+  chrome.storage.sync.get("options", ({ options }) => {
+    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), activeEnvironment: envSelect.value };
+    chrome.storage.sync.set({ options: newOptions });
+  });
+  updateEnvVarCount();
+});
 
 // Auth
 authTemplateBtn.addEventListener("click", openAuthModal);
@@ -971,7 +1173,7 @@ document.addEventListener("keydown", (e) => {
   // Ctrl+Enter or Cmd+Enter: Send request
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     e.preventDefault();
-    sendRequest();
+    if (!isRequestInFlight) sendRequest();
     return;
   }
   
@@ -1032,5 +1234,26 @@ favoriteName.addEventListener("keydown", (e) => {
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (currentOptions.theme === "system") {
     applyTheme("system");
+  }
+});
+
+// Re-apply options and history when changed from the options page while popup is open
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.options) {
+    const newOpts = changes.options.newValue || {};
+    currentOptions = { ...DEFAULT_OPTIONS, ...newOpts };
+    maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
+    favorites = currentOptions.favorites || [];
+    applyTheme(currentOptions.theme);
+    renderFavorites();
+    renderEnvSelect();
+  }
+  if (area === "sync" && changes.environments) {
+    currentEnvironments = changes.environments.newValue || [];
+    renderEnvSelect();
+  }
+  if (area === "local" && changes.history) {
+    historyItems = changes.history.newValue || [];
+    renderHistory();
   }
 });

@@ -17,6 +17,8 @@
       <div class="actions">
         <button id="sendBtn" class="primary" title="Send request (Ctrl+Enter)">Send</button>
         <button id="copyCurlBtn" class="ghost" title="Copy as cURL">Copy cURL</button>
+        <button id="codegenBtn" class="ghost" title="Generate code snippet">{ } Snippets</button>
+        <button id="shareBtn" class="ghost" title="Export / import request">Share</button>
         <button id="themeBtn" class="ghost" title="Toggle theme (T)">Theme</button>
         <button id="helpBtn" class="ghost" title="Keyboard shortcuts (?)">?</button>
         <a href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab (O)">Open in tab</a>
@@ -28,6 +30,7 @@
         <div class="label-inline">
           <label for="favoriteSelect">Favorites</label>
           <div class="pill-actions">
+            <button id="loadFavoriteBtn" class="ghost small" title="Load selected favorite">Load</button>
             <button id="saveFavoriteBtn" class="ghost small" title="Save current request">Save</button>
             <button id="deleteFavoriteBtn" class="ghost small" title="Delete selected">Delete</button>
           </div>
@@ -54,6 +57,17 @@
       </div>
 
       <div class="row">
+        <div class="label-inline">
+          <label for="envSelect">Environment</label>
+          <span id="envVarCount" class="hint"></span>
+        </div>
+        <select id="envSelect">
+          <option value="">No environment</option>
+        </select>
+      </div>
+
+      <div class="request-bar">
+      <div class="row">
         <label for="method">Method</label>
         <select id="method">
           <option>GET</option>
@@ -68,6 +82,7 @@
       <div class="row">
         <label for="url">URL</label>
         <input id="url" type="text" placeholder="https://api.example.com/resource">
+      </div>
       </div>
       <div class="row dual">
         <div>
@@ -87,9 +102,19 @@
       <div class="row">
         <div class="label-inline">
           <label for="body">Body</label>
-          <span id="bodyHint" class="hint">Ignored for GET/HEAD</span>
+          <div class="pill-actions">
+            <span id="bodyHint" class="hint">Ignored for GET/HEAD</span>
+            <button id="gqlToggleBtn" class="ghost small" title="Toggle GraphQL mode">GraphQL</button>
+          </div>
         </div>
         <textarea id="body" rows="5" placeholder='{"name":"Ada"}'></textarea>
+      </div>
+      <div id="gqlVarsRow" class="row" style="display:none">
+        <div class="label-inline">
+          <label for="gqlVariables">GraphQL variables</label>
+          <span class="hint">JSON object</span>
+        </div>
+        <textarea id="gqlVariables" rows="3" placeholder='{"id": 1}'></textarea>
       </div>
       <div class="row">
         <div class="label-inline">
@@ -114,6 +139,7 @@
         <span id="statusBadge" class="badge muted">Waiting</span>
       </div>
       <p id="responseMeta" class="meta"></p>
+      <div id="timingPanel" class="timing-panel" style="display:none"></div>
       <div class="stack">
         <div>
           <div class="label-inline">
@@ -126,6 +152,7 @@
           <div class="label-inline">
             <p class="hint">Body</p>
             <div class="pill-actions">
+              <button id="validateBtn" class="ghost small" title="Validate response body">Validate</button>
               <button id="copyBodyBtn" class="ghost small">Copy</button>
               <button id="saveBodyBtn" class="ghost small">Download</button>
             </div>
@@ -136,6 +163,7 @@
     </section>
 
     <div class="footer-actions">
+      <button id="cancelBtn" class="ghost cancel-btn" title="Cancel in-flight request" style="display:none">Cancel</button>
       <button id="sendBtnBottom" class="primary full" title="Send request (Ctrl+Enter)">Send</button>
     </div>
   </main>
@@ -254,7 +282,90 @@
     </div>
   </div>
 
+  <!-- Code Snippet Generator Modal -->
+  <div id="codegenModal" class="modal" role="dialog" aria-labelledby="codegenModalTitle" aria-modal="true">
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2 id="codegenModalTitle">Generate Code Snippet</h2>
+        <button id="closeCodegenModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <label for="codegenLang">Language</label>
+          <select id="codegenLang"></select>
+        </div>
+        <div class="row">
+          <div class="label-inline">
+            <label>Snippet</label>
+            <button id="codegenCopyBtn" class="ghost small">Copy</button>
+          </div>
+          <pre id="codegenOutput" class="code snippet-output"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="closeCodegenModalFooter" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Validate Response Modal -->
+  <div id="validateModal" class="modal" role="dialog" aria-labelledby="validateModalTitle" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="validateModalTitle">Validate Response</h2>
+        <button id="closeValidateModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <label for="validateType">Content type</label>
+          <select id="validateType">
+            <option value="json">JSON</option>
+            <option value="xml">XML</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+          </select>
+        </div>
+        <div id="validateResult" class="validate-result"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="runValidateBtn" class="primary">Re-validate</button>
+        <button id="closeValidateModalFooter" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share / Export-Import Modal -->
+  <div id="shareModal" class="modal" role="dialog" aria-labelledby="shareModalTitle" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="shareModalTitle">Share Request</h2>
+        <button id="closeShareModal" class="ghost small" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="label-inline">
+            <label for="shareExportOutput">Export — copy this code and share it</label>
+            <button id="shareExportCopyBtn" class="ghost small">Copy</button>
+          </div>
+          <textarea id="shareExportOutput" rows="3" readonly placeholder="Generating…"></textarea>
+        </div>
+        <div class="row">
+          <label for="shareImportInput">Import — paste a code to load a shared request</label>
+          <textarea id="shareImportInput" rows="3" placeholder="Paste exported code here…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="shareImportApplyBtn" class="primary">Import</button>
+        <button id="closeShareModalFooter" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="defaults.js"></script>
   <script src="popup.js"></script>
+  <script src="popup/codegen.js"></script>
+  <script src="popup/validators.js"></script>
+  <script src="popup/timing.js"></script>
+  <script src="popup/share.js"></script>
 </body>
 </html>

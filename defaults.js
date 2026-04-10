@@ -10,6 +10,7 @@
     historySize: 8,
     historyEnabled: true,
     favorites: [],
+    activeEnvironment: "",
   };
 
   function clampHistorySize(size) {

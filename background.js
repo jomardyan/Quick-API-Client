@@ -1,14 +1,30 @@
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEBUG_LOGGING = false;
 
+// Track in-flight requests so cancellation can abort them
+const pendingRequests = new Map(); // requestId -> AbortController
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Handle cancellation from popup
+  if (message?.type === "cancel-request") {
+    const controller = pendingRequests.get(message.payload?.requestId);
+    if (controller) {
+      controller.abort();
+      pendingRequests.delete(message.payload.requestId);
+    }
+    return; // no async response needed
+  }
+
   if (message?.type !== "api-request") return;
 
-  const { url, method, headers, body, timeoutMs } = message.payload;
+  const { url, method, headers, body, timeoutMs, requestId } = message.payload;
   const effectiveTimeout =
     typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), effectiveTimeout);
+
+  if (requestId) pendingRequests.set(requestId, controller);
+
   const started = performance.now();
 
   (async () => {
@@ -68,6 +84,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       });
     } finally {
       clearTimeout(timeout);
+      if (requestId) pendingRequests.delete(requestId);
     }
   })();
 

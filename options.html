@@ -81,6 +81,39 @@
       </div>
     </section>
 
+    <section class="panel">
+      <div class="row">
+        <div class="label-inline">
+          <label>Environments</label>
+          <div class="pill-actions">
+            <button id="addEnvBtn" class="ghost small">+ New</button>
+            <button id="deleteEnvBtn" class="ghost small">Delete</button>
+          </div>
+        </div>
+        <p class="hint">Use <code>{{VAR_NAME}}</code> in URL, headers, and body. Select the active environment in the popup toolbar.</p>
+      </div>
+      <div class="row">
+        <label for="envNameSelect">Environment</label>
+        <select id="envNameSelect">
+          <option value="">No environments yet — click + New</option>
+        </select>
+      </div>
+      <div id="envEditor" class="env-editor" style="display:none">
+        <div class="row">
+          <label for="envNameInput">Name</label>
+          <input id="envNameInput" type="text" placeholder="Production">
+        </div>
+        <div class="row">
+          <label for="envVarsInput">Variables</label>
+          <textarea id="envVarsInput" rows="6" placeholder='[{"key":"base_url","value":"https://api.example.com"}]&#10;or one per line:&#10;base_url: https://api.example.com&#10;api_version: v2'></textarea>
+          <p class="hint">JSON array <code>[{"key":"…","value":"…"}]</code> or one <code>key: value</code> per line.</p>
+        </div>
+        <div class="row">
+          <button id="saveEnvBtn" class="primary align-start">Save environment</button>
+        </div>
+      </div>
+    </section>
+
     <p id="status" class="status hint"></p>
   </main>
   <script src="defaults.js"></script>
