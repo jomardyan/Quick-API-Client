@@ -279,7 +279,7 @@
 
   // ── Modal UI ───────────────────────────────────────────────────────────────
 
-  document.addEventListener("DOMContentLoaded", () => {
+  (function init() {
     const btn        = document.getElementById("codegenBtn");
     const modal      = document.getElementById("codegenModal");
     const langSelect = document.getElementById("codegenLang");
@@ -352,5 +352,5 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && modal.classList.contains("show")) closeModal();
     });
-  });
+  }());
 })();

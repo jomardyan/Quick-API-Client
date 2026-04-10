@@ -30,6 +30,41 @@ const addEnvBtn = document.getElementById("addEnvBtn");
 const deleteEnvBtn = document.getElementById("deleteEnvBtn");
 const saveEnvBtn = document.getElementById("saveEnvBtn");
 
+// Confirmation modal
+const confirmModal = document.getElementById("confirmModal");
+const confirmModalMessage = document.getElementById("confirmModalMessage");
+const confirmModalOkBtn = document.getElementById("confirmModalOkBtn");
+const confirmModalCancelBtn = document.getElementById("confirmModalCancelBtn");
+
+let _confirmCallback = null;
+
+function showConfirm(message, onOk) {
+  confirmModalMessage.textContent = message;
+  _confirmCallback = onOk;
+  confirmModal.classList.add("show");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => confirmModalOkBtn.focus(), 100);
+}
+
+function closeConfirmModal() {
+  confirmModal.classList.remove("show");
+  document.body.style.overflow = "";
+  _confirmCallback = null;
+}
+
+confirmModalOkBtn.addEventListener("click", () => {
+  const cb = _confirmCallback;
+  closeConfirmModal();
+  if (cb) cb();
+});
+confirmModalCancelBtn.addEventListener("click", closeConfirmModal);
+confirmModal.addEventListener("click", (e) => {
+  if (e.target === confirmModal) closeConfirmModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && confirmModal.classList.contains("show")) closeConfirmModal();
+});
+
 let environments = [];
 let selectedEnvIdx = -1;
 
@@ -213,10 +248,11 @@ addEnvBtn.addEventListener("click", () => {
 deleteEnvBtn.addEventListener("click", () => {
   if (selectedEnvIdx < 0 || !environments.length) return;
   const name = environments[selectedEnvIdx].name;
-  if (!confirm(`Delete environment "${name}"?`)) return;
-  environments.splice(selectedEnvIdx, 1);
-  selectedEnvIdx = Math.min(selectedEnvIdx, environments.length - 1);
-  persistEnvironments(renderEnvSelect);
+  showConfirm(`Delete environment "${name}"?`, () => {
+    environments.splice(selectedEnvIdx, 1);
+    selectedEnvIdx = Math.min(selectedEnvIdx, environments.length - 1);
+    persistEnvironments(renderEnvSelect);
+  });
 });
 
 saveEnvBtn.addEventListener("click", () => {

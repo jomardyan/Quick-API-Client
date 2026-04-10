@@ -119,7 +119,7 @@
 
   // ── MutationObserver setup ─────────────────────────────────────────────────
 
-  document.addEventListener("DOMContentLoaded", () => {
+  (function init() {
     const panel  = document.getElementById("timingPanel");
     const metaEl = document.getElementById("responseMeta");
     const bodyEl = document.getElementById("responseBody");
@@ -143,5 +143,5 @@
       characterData: true,
       subtree: true,
     });
-  });
+  }());
 })();

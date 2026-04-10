@@ -169,14 +169,10 @@ body {
   flex-direction: column;
 }
 
-/* ── Top App Bar — M3 small ──────────────────────────────────────────────── */
+/* ── Top App Bar — two-row M3 header ────────────────────────────────────── */
 .top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-  height: 52px;
+  flex-direction: column;
   background: var(--md-sys-color-surface);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   position: sticky;
@@ -185,12 +181,13 @@ body {
   flex-shrink: 0;
 }
 
+/* Row 1: title + subtitle */
 .top > div:first-child {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  padding: 10px 16px 6px;
   min-width: 0;
-  overflow: hidden;
 }
 
 /* Eyebrow — hidden in M3 minimal layout */
@@ -202,6 +199,7 @@ h1 {
   letter-spacing: -0.01em;
   color: var(--md-sys-color-on-surface);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sub {
@@ -210,15 +208,20 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
-/* ── Actions (App Bar trailing) ──────────────────────────────────────────── */
+/* Row 2: scrollable action strip */
 .actions {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
+  padding: 4px 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;   /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
+.actions::-webkit-scrollbar { display: none; /* Chrome/Safari */ }
 
 /* ── M3 Buttons ──────────────────────────────────────────────────────────── */
 button {
@@ -870,8 +873,8 @@ p.meta { margin: 0; }
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   body { min-width: 0; }
-  .top { height: auto; padding: 10px 12px; flex-wrap: wrap; }
-  .actions { flex-wrap: wrap; justify-content: flex-end; }
+  .top > div:first-child { padding: 8px 12px 4px; }
+  .actions { padding: 4px 8px 8px; }
   .dual { grid-template-columns: 1fr; }
   .request-bar { grid-template-columns: 100px 1fr; }
 }

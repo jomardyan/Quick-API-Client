@@ -81,6 +81,7 @@ body[data-theme="light"] {
   --md-state-hover:   rgba(9, 105, 218, 0.08);
   --md-state-focus:   rgba(9, 105, 218, 0.12);
   --accent:     #0969da;
+  --accent-2:   #1a7f37;
   --border:     #d0d7de;
   --panel:      #f6f8fa;
   --bg:         #ffffff;
@@ -88,6 +89,7 @@ body[data-theme="light"] {
   --muted:      #57606a;
   --input:      #eaeef2;
   --focus-ring: rgba(9, 105, 218, 0.4);
+  --md-state-pressed: rgba(9, 105, 218, 0.16);
 }
 
 body[data-theme="dark"] { color-scheme: dark; }
@@ -413,6 +415,76 @@ code {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── M3 Dialog / Modal ───────────────────────────────────────────────────── */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--md-sys-color-scrim);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  animation: md-scrim-in 150ms ease;
+}
+.modal.show { display: flex; }
+
+@keyframes md-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-content {
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  padding: 24px;
+  max-width: 500px;
+  width: calc(100% - 48px);
+  box-shadow: var(--md-sys-elevation-3);
+  display: flex;
+  flex-direction: column;
+  animation: md-dialog-in 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes md-dialog-in {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--md-sys-color-on-surface);
+  margin: 0;
+}
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Missing container-high token fallback for options.css */
+:root {
+  --md-sys-color-surface-container-high: #2d333b;
+}
+body[data-theme="light"] {
+  --md-sys-color-surface-container-high: #dde1e7;
+}
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 720px) {

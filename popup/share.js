@@ -126,7 +126,7 @@
 
   // ── Modal UI ───────────────────────────────────────────────────────────────
 
-  document.addEventListener("DOMContentLoaded", () => {
+  (function init() {
     const shareBtn    = document.getElementById("shareBtn");
     const modal       = document.getElementById("shareModal");
     const exportOut   = document.getElementById("shareExportOutput");
@@ -209,5 +209,5 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && modal.classList.contains("show")) closeModal();
     });
-  });
+  }());
 })();

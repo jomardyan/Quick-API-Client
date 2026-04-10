@@ -70,6 +70,12 @@ const closeHelpModalBtn = document.getElementById("closeHelpModalBtn");
 // Cancel in-flight request
 const cancelBtn = document.getElementById("cancelBtn");
 
+// Confirmation modal
+const confirmModal = document.getElementById("confirmModal");
+const confirmModalMessage = document.getElementById("confirmModalMessage");
+const confirmModalOkBtn = document.getElementById("confirmModalOkBtn");
+const confirmModalCancelBtn = document.getElementById("confirmModalCancelBtn");
+
 // Environment selector
 const envSelect = document.getElementById("envSelect");
 const envVarCount = document.getElementById("envVarCount");
@@ -494,25 +500,23 @@ function applyFavorite() {
 
 function deleteFavorite() {
   const idx = favoriteSelect.value;
-  if (!idx || !favorites[idx]) {
+  if (!idx || !favorites[Number(idx)]) {
     showToast("Select a favorite to delete");
     return;
   }
-  
-  // Create a simple confirmation via modal would be better, but using confirm for simplicity
-  // TODO: Replace with a proper confirmation modal for better UX
-  if (!confirm(`Delete "${favorites[idx].name}"?`)) return;
-  
-  favorites.splice(idx, 1);
-  chrome.storage.sync.get("options", ({ options }) => {
-    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
-    chrome.storage.sync.set({ options: newOptions }, () => {
-      if (chrome.runtime.lastError) {
-        showToast("Delete failed: " + chrome.runtime.lastError.message);
-        return;
-      }
-      renderFavorites();
-      showToast("Favorite deleted");
+
+  showConfirm(`Delete "${favorites[Number(idx)].name}"?`, () => {
+    favorites.splice(Number(idx), 1);
+    chrome.storage.sync.get("options", ({ options }) => {
+      const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
+      chrome.storage.sync.set({ options: newOptions }, () => {
+        if (chrome.runtime.lastError) {
+          showToast("Delete failed: " + chrome.runtime.lastError.message);
+          return;
+        }
+        renderFavorites();
+        showToast("Favorite deleted");
+      });
     });
   });
 }
@@ -1051,6 +1055,22 @@ function downloadBody() {
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
+let _confirmCallback = null;
+
+function showConfirm(message, onOk) {
+  confirmModalMessage.textContent = message;
+  _confirmCallback = onOk;
+  confirmModal.classList.add("show");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => confirmModalOkBtn.focus(), MODAL_TRANSITION_DELAY);
+}
+
+function closeConfirmModal() {
+  confirmModal.classList.remove("show");
+  document.body.style.overflow = "";
+  _confirmCallback = null;
+}
+
 function showToast(message) {
   if (!toastEl) return;
   toastEl.textContent = message;
@@ -1168,6 +1188,17 @@ helpBtn.addEventListener("click", openHelpModal);
 closeHelpModal.addEventListener("click", closeHelpModalFn);
 closeHelpModalBtn.addEventListener("click", closeHelpModalFn);
 
+// Confirmation modal
+confirmModalOkBtn.addEventListener("click", () => {
+  const cb = _confirmCallback;
+  closeConfirmModal();
+  if (cb) cb();
+});
+confirmModalCancelBtn.addEventListener("click", closeConfirmModal);
+confirmModal.addEventListener("click", (e) => {
+  if (e.target === confirmModal) closeConfirmModal();
+});
+
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   // Ctrl+Enter or Cmd+Enter: Send request
@@ -1179,6 +1210,10 @@ document.addEventListener("keydown", (e) => {
   
   // Escape: Close modals
   if (e.key === "Escape") {
+    if (confirmModal.classList.contains("show")) {
+      closeConfirmModal();
+      return;
+    }
     if (authModal.classList.contains("show")) {
       closeAuthModalFn();
       return;

@@ -176,7 +176,7 @@
 
   // ── Modal UI ────────────────────────────────────────────────────────────────
 
-  document.addEventListener("DOMContentLoaded", () => {
+  (function init() {
     const validateBtn = document.getElementById("validateBtn");
     const modal       = document.getElementById("validateModal");
     const typeSelect  = document.getElementById("validateType");
@@ -262,5 +262,5 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && modal.classList.contains("show")) closeModal();
     });
-  });
+  }());
 })();
