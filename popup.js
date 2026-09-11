@@ -109,6 +109,14 @@ let swGuardTimeoutId = null;
 // ── GraphQL mode ──────────────────────────────────────────────────────────────
 let gqlMode = false;
 
+function disableGqlMode() {
+  gqlMode = false;
+  gqlToggleBtn.classList.remove("primary");
+  gqlToggleBtn.classList.add("ghost");
+  gqlVarsRow.style.display = "none";
+  gqlVariables.value = "";
+}
+
 function setGqlMode(enabled) {
   gqlMode = enabled;
   gqlToggleBtn.classList.toggle("primary", enabled);
@@ -287,7 +295,7 @@ function highlightJson(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(
-      /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
+      /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
       (match) => {
         if (/^"/.test(match)) {
           const isKey = /:$/.test(match);
@@ -461,7 +469,7 @@ function saveFavorite(name) {
   const sensitivePatterns = ["authorization", "x-api-key", "api-key", "x-auth-token", "x-access-token"];
   const hasCredential = headers.some(({ key }) => sensitivePatterns.includes(key.toLowerCase()));
 
-  const favorite = { name, method, url, query, headers, body };
+  const favorite = { name, method, url, query, headers, body, gqlMode, gqlVariables: gqlVariables.value };
   favorites.push(favorite);
 
   chrome.storage.sync.get("options", ({ options }) => {
@@ -494,6 +502,12 @@ function applyFavorite() {
     createKVRow(headersListEl, key, value)
   );
   bodyEl.value = fav.body || "";
+  if (fav.gqlMode) {
+    setGqlMode(true);
+    gqlVariables.value = fav.gqlVariables || "";
+  } else {
+    disableGqlMode();
+  }
   updatePreview();
   saveState();
 }
@@ -936,7 +950,7 @@ async function sendRequest() {
 }
 
 function shellEscape(str) {
-  return `'${str.replace(/'/g, `'\"'\"'`)}'`;
+  return `'${str.replace(/'/g, `'"'"'`)}'`;
 }
 
 function buildCurl() {
@@ -975,6 +989,7 @@ function resetForm() {
   queryListEl.innerHTML = "";
   headersListEl.innerHTML = "";
   bodyEl.value = currentOptions.defaultBody || "";
+  disableGqlMode();
 
   (currentOptions.defaultQuery?.length ? currentOptions.defaultQuery : [{}]).forEach(
     ({ key = "", value = "" }) => createKVRow(queryListEl, key, value)
@@ -1021,6 +1036,7 @@ function applyPreset() {
     createKVRow(headersListEl, key, value)
   );
   bodyEl.value = preset.body || "";
+  disableGqlMode();
   updatePreview();
   saveState();
 }
