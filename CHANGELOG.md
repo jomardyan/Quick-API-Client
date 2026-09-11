@@ -1,3 +1,17 @@
+## 1.1.5 - 2026-09-11
+
+- Prevent duplicate sends during permission prompts and ignore stale callbacks after cancellation.
+- Share request preparation across sending, preview and generated code, including GraphQL and environment values.
+- Preserve raw request bodies and duplicate query parameters. Validate protocols, headers and import data.
+- Bound request and response bodies to 5 MiB and skip syntax highlighting above 200,000 characters.
+- Report actual response bytes and preserve raw response text when copying or downloading.
+- Distinguish cancellations from timeouts and clean up request controllers and streams.
+- Fix generated PHP, Java and C# quoting, empty Java POST bodies, and non-JSON Fetch responses.
+- Preserve GraphQL variables during restoration and prevent settings reset from deleting favorites.
+- Retain active environment selection when renaming, clear it when deleting, and report failed saves correctly.
+- Include all popup modules in release archives and synchronize version metadata.
+- Replace copied test implementations with source-based checks and add regression and browser package tests.
+
 # Changelog - Quick API Client
 
 Welcome to the **Quick API Client** release log. Below is the list of changes, optimizations, and new features introduced for the Chrome Store and Edge Add-ons.

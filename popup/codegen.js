@@ -25,43 +25,9 @@
 
   // ── DOM helpers ────────────────────────────────────────────────────────────
 
-  /**
-   * Read the current request form fields and return a normalised state object.
-   * This mirrors popup.js's form-reading pattern, but is intentionally copied
-   * here so codegen.js has zero dependency on popup.js internals.
-   */
+  // Use the same prepared payload as the network request and preview.
   function getRequestState() {
-    const method = document.getElementById("method")?.value || "GET";
-    const urlInput = (document.getElementById("url")?.value || "").trim();
-    const bodyText = document.getElementById("body")?.value || "";
-
-    const query = Array.from(
-      document.querySelectorAll("#queryParams .kv-row")
-    ).map((row) => ({
-      key: (row.querySelector(".kv-key")?.value || "").trim(),
-      value: row.querySelector(".kv-value")?.value || "",
-    })).filter((p) => p.key);
-
-    const headers = Array.from(
-      document.querySelectorAll("#headers .kv-row")
-    ).map((row) => ({
-      key: (row.querySelector(".kv-key")?.value || "").trim(),
-      value: row.querySelector(".kv-value")?.value || "",
-    })).filter((h) => h.key);
-
-    // Build the final URL (with scheme + query params)
-    let finalUrl = urlInput;
-    if (finalUrl && !/^https?:\/\//i.test(finalUrl)) {
-      finalUrl = "https://" + finalUrl;
-    }
-    try {
-      const u = new URL(finalUrl);
-      query.forEach(({ key, value }) => u.searchParams.set(key, value));
-      finalUrl = u.toString();
-    } catch (_) { /* keep as-is if URL is invalid */ }
-
-    const isBodyless = ["GET", "HEAD"].includes(method);
-    return { method, url: finalUrl, headers, body: isBodyless ? "" : bodyText };
+    return window.prepareRequest();
   }
 
   // ── Snippet generators ─────────────────────────────────────────────────────
@@ -74,12 +40,16 @@
     return headers.reduce((acc, { key, value }) => {
       acc[key] = value;
       return acc;
-    }, {});
+    }, Object.create(null));
   }
 
   function getContentType(headers) {
     const ct = headers.find((h) => h.key.toLowerCase() === "content-type");
     return ct ? ct.value : "text/plain";
+  }
+
+  function phpString(value) {
+    return "'" + value.replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
   }
 
   const generators = {
@@ -88,7 +58,7 @@
       headers.forEach(({ key, value }) =>
         lines.push("  -H " + shellEscape(key + ": " + value))
       );
-      if (body.trim()) {
+      if (body.length) {
         lines.push("  --data-raw " + shellEscape(body));
       }
       return lines.join(" \\\n");
@@ -104,7 +74,7 @@
         );
         args.push("headers=headers");
       }
-      if (body.trim()) {
+      if (body.length) {
         lines.push("payload = " + JSON.stringify(body), "");
         args.push("data=payload");
       }
@@ -122,10 +92,10 @@
     "javascript-fetch"({ method, url, headers, body }) {
       const opts = { method };
       if (headers.length) opts.headers = toHeadersObj(headers);
-      if (body.trim()) opts.body = body;
+      if (body.length) opts.body = body;
       return [
         "fetch(" + JSON.stringify(url) + ", " + JSON.stringify(opts, null, 2) + ")",
-        "  .then(res => res.json())",
+        "  .then(res => res.text())",
         "  .then(data => console.log(data))",
         "  .catch(err => console.error('Error:', err));",
       ].join("\n");
@@ -140,7 +110,7 @@
           "  headers: " + JSON.stringify(toHeadersObj(headers), null, 4) + ","
         );
       }
-      if (body.trim()) {
+      if (body.length) {
         lines.push("  data: " + JSON.stringify(body) + ",");
       }
       lines.push("  success: function(data) { console.log(data); },");
@@ -153,19 +123,19 @@
       const lines = [
         "<?php",
         "$ch = curl_init();",
-        "curl_setopt($ch, CURLOPT_URL, " + JSON.stringify(url) + ");",
+        "curl_setopt($ch, CURLOPT_URL, " + phpString(url) + ");",
         "curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);",
-        "curl_setopt($ch, CURLOPT_CUSTOMREQUEST, " + JSON.stringify(method) + ");",
+        "curl_setopt($ch, CURLOPT_CUSTOMREQUEST, " + phpString(method) + ");",
       ];
       if (headers.length) {
         const hs = headers
-          .map(({ key, value }) => "    '" + key + ": " + value + "'")
+          .map(({ key, value }) => "    " + phpString(key + ": " + value))
           .join(",\n");
         lines.push("curl_setopt($ch, CURLOPT_HTTPHEADER, [\n" + hs + "\n]);");
       }
-      if (body.trim()) {
+      if (body.length) {
         lines.push(
-          "curl_setopt($ch, CURLOPT_POSTFIELDS, " + JSON.stringify(body) + ");"
+          "curl_setopt($ch, CURLOPT_POSTFIELDS, " + phpString(body) + ");"
         );
       }
       lines.push(
@@ -189,9 +159,9 @@
         ({ key }) => key.toLowerCase() !== "content-type"
       );
       let bodyVar = "null";
-      if (body.trim()) {
+      if (body.length || ["POST", "PUT", "PATCH"].includes(method)) {
         const ct = getContentType(headers);
-        lines.push('MediaType mediaType = MediaType.parse("' + ct + '");');
+        lines.push('MediaType mediaType = MediaType.parse(' + JSON.stringify(ct) + ');');
         lines.push(
           "RequestBody body = RequestBody.create(" +
             JSON.stringify(body) +
@@ -203,7 +173,7 @@
       lines.push("Request request = new Request.Builder()");
       lines.push("  .url(" + JSON.stringify(url) + ")");
       requestHeaders.forEach(({ key, value }) =>
-        lines.push('  .addHeader("' + key + '", "' + value + '")')
+        lines.push('  .addHeader(' + JSON.stringify(key) + ', ' + JSON.stringify(value) + ')')
       );
       // .method() works for every HTTP verb (including HEAD/OPTIONS, which have
       // no dedicated builder shorthand), unlike .get()/.post()/etc.
@@ -231,17 +201,17 @@
       );
       requestHeaders.forEach(({ key, value }) =>
         lines.push(
-          'request.Headers.TryAddWithoutValidation("' + key + '", "' + value + '");'
+          'request.Headers.TryAddWithoutValidation(' + JSON.stringify(key) + ', ' + JSON.stringify(value) + ');'
         )
       );
-      if (body.trim()) {
-        const ct = getContentType(headers);
+      if (body.length) {
+        const ct = getContentType(headers).split(";")[0].trim();
         lines.push(
           "request.Content = new StringContent(" +
             JSON.stringify(body) +
-            ', System.Text.Encoding.UTF8, "' +
-            ct +
-            '");'
+            ', System.Text.Encoding.UTF8, ' +
+            JSON.stringify(ct) +
+            ');'
         );
       }
       lines.push(
@@ -264,7 +234,7 @@
           "  headers: " + JSON.stringify(toHeadersObj(headers), null, 4) + ","
         );
       }
-      if (body.trim()) {
+      if (body.length) {
         cfg.push("  data: " + JSON.stringify(body));
       }
       lines.push("axios({", ...cfg, "})");
@@ -277,9 +247,11 @@
   // ── Public API ─────────────────────────────────────────────────────────────
 
   function generate(lang) {
-    const state = getRequestState();
-    const gen = generators[lang];
-    return gen ? gen(state) : "(unsupported language: " + lang + ")";
+    try {
+      const state = getRequestState();
+      const gen = generators[lang];
+      return gen ? gen(state) : "(unsupported language: " + lang + ")";
+    } catch (err) { return err.message; }
   }
 
   window.QuickCodegen = { generate, LANGS, generators };

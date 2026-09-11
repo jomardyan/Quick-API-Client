@@ -20,7 +20,7 @@
       "env": { "node": true, "jest": true }
     },
     {
-      "files": ["generate-screenshots.js"],
+      "files": ["generate-screenshots.js", "scripts/**/*.js"],
       "env": { "node": true }
     }
   ]

@@ -88,6 +88,7 @@ const gqlVariables = document.getElementById("gqlVariables");
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
 let favorites = [];
+let favoriteMutationPending = false;
 
 // ── Debounce utility ──────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -111,6 +112,7 @@ let gqlMode = false;
 
 function disableGqlMode() {
   gqlMode = false;
+  methodEl.disabled = false;
   gqlToggleBtn.classList.remove("primary");
   gqlToggleBtn.classList.add("ghost");
   gqlVarsRow.style.display = "none";
@@ -119,6 +121,8 @@ function disableGqlMode() {
 
 function setGqlMode(enabled) {
   gqlMode = enabled;
+  methodEl.disabled = enabled;
+  if (!enabled) gqlVariables.value = "";
   gqlToggleBtn.classList.toggle("primary", enabled);
   gqlToggleBtn.classList.toggle("ghost", !enabled);
   gqlVarsRow.style.display = enabled ? "" : "none";
@@ -136,18 +140,6 @@ function setGqlMode(enabled) {
 
 // ── Environment variable substitution ────────────────────────────────────────
 
-/**
- * Replace {{VAR_NAME}} tokens with values from the active environment.
- * Unresolved tokens are left as-is so the user sees the problem clearly.
- */
-function substituteVars(text, vars) {
-  if (!text || !vars.length) return text;
-  return text.replace(/\{\{([^}]+)\}\}/g, (match, name) => {
-    const entry = vars.find((v) => v.key === name.trim());
-    return entry !== undefined ? entry.value : match;
-  });
-}
-
 function getActiveEnvVars() {
   const envName = currentOptions.activeEnvironment || "";
   if (!envName || !currentEnvironments.length) return [];
@@ -156,7 +148,6 @@ function getActiveEnvVars() {
 }
 
 function renderEnvSelect() {
-  const current = envSelect.value;
   envSelect.innerHTML = '<option value="">No environment</option>';
   currentEnvironments.forEach((env) => {
     const opt = document.createElement("option");
@@ -165,7 +156,7 @@ function renderEnvSelect() {
     envSelect.appendChild(opt);
   });
   // Restore prior selection or active env from options
-  const desired = current || currentOptions.activeEnvironment || "";
+  const desired = currentOptions.activeEnvironment || "";
   envSelect.value = desired;
   updateEnvVarCount();
 }
@@ -266,21 +257,6 @@ function readKV(container) {
     .filter(Boolean);
 }
 
-function buildUrl(rawUrl, queryParams) {
-  let normalized = rawUrl.trim();
-  if (normalized && !/^https?:\/\//i.test(normalized)) {
-    normalized = `https://${normalized}`;
-  }
-  let urlObj;
-  try {
-    urlObj = new URL(normalized);
-  } catch (err) {
-    return null;
-  }
-  queryParams.forEach(({ key, value }) => urlObj.searchParams.set(key, value));
-  return urlObj.toString();
-}
-
 function prettifyJsonMaybe(text) {
   try {
     return JSON.stringify(JSON.parse(text), null, 2);
@@ -323,8 +299,8 @@ function highlightHeaders(lines) {
     .join("\n");
 }
 
-function saveState() {
-  const state = {
+function snapshotRequest() {
+  return {
     method: methodEl.value,
     url: urlEl.value,
     query: readKV(queryListEl),
@@ -333,7 +309,12 @@ function saveState() {
     gqlMode,
     gqlVariables: gqlVariables.value,
   };
-  chrome.storage.local.set({ lastRequest: state });
+}
+
+function saveState() {
+  chrome.storage.local.set({ lastRequest: snapshotRequest() }, () => {
+    if (chrome.runtime.lastError) showToast("Could not save request - " + chrome.runtime.lastError.message);
+  });
 }
 
 function applyTheme(themeChoice) {
@@ -356,13 +337,13 @@ function loadOptions() {
     chrome.storage.sync.get(["options", "environments"], ({ options, environments }) => {
       currentOptions = { ...DEFAULT_OPTIONS, ...(options || {}) };
       maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
-      favorites = currentOptions.favorites || [];
-      currentEnvironments = environments || [];
+      favorites = Array.isArray(currentOptions.favorites) ? currentOptions.favorites : [];
+      currentEnvironments = Array.isArray(environments) ? environments : [];
       applyTheme(currentOptions.theme);
       renderFavorites();
       renderEnvSelect();
       chrome.storage.local.get("history", ({ history }) => {
-        historyItems = history || [];
+        historyItems = Array.isArray(history) ? history : [];
         renderHistory();
         resolve(currentOptions);
       });
@@ -397,32 +378,30 @@ function restoreState() {
 
     bodyEl.value = base.body || "";
     if (base.gqlMode) {
-      setGqlMode(true);
       gqlVariables.value = base.gqlVariables || "";
+      setGqlMode(true);
     }
     updatePreview();
   });
 }
 
 function updatePreview() {
-  const method = methodEl.value;
-  const query = readKV(queryListEl);
-  const headers = readKV(headersListEl);
-  const url = buildUrl(urlEl.value, query);
-
-  const headerLines = headers.map(({ key, value }) => `${key}: ${value}`);
-  const parts = [
-    `${method} ${url || "(invalid URL)"} HTTP/1.1`,
-    headerLines.length ? headerLines.join("\n") : "",
-    isBodyless(method) ? "" : bodyEl.value.trim(),
-  ].filter(Boolean);
-
-  requestPreviewEl.textContent = parts.join("\n\n");
+  try {
+    const request = prepareRequest();
+    requestPreviewEl.textContent = [
+      `${request.method} ${request.url} HTTP/1.1`,
+      request.headers.map(({ key, value }) => `${key}: ${value}`).join("\n"),
+      request.body,
+    ].filter(Boolean).join("\n\n");
+  } catch (err) {
+    requestPreviewEl.textContent = err.message;
+  }
   document.getElementById("bodyHint").textContent = gqlMode
-    ? "GraphQL query string"
-    : isBodyless(method)
-    ? "Ignored for GET/HEAD"
-    : "Sends raw text; JSON is auto-formatted if valid";
+    ? "GraphQL query string" : isBodyless(methodEl.value) ? "Ignored for GET/HEAD" : "Sends the body exactly as entered";
+}
+
+function prepareRequest() {
+  return window.QuickRequest.prepare(snapshotRequest(), getActiveEnvVars());
 }
 
 function originFromUrl(url) {
@@ -436,9 +415,11 @@ function originFromUrl(url) {
 function ensureOriginPermission(origin) {
   return new Promise((resolve) => {
     if (!origin) return resolve(false);
-    chrome.permissions.contains({ origins: [origin] }, (has) => {
-      if (has) return resolve(true);
-      chrome.permissions.request({ origins: [origin] }, (granted) => resolve(Boolean(granted)));
+    // Request directly from the click gesture. Already granted access resolves without another prompt.
+    chrome.permissions.request({ origins: [origin] }, (granted) => {
+      const error = chrome.runtime.lastError;
+      if (error) showToast(error.message);
+      resolve(!error && Boolean(granted));
     });
   });
 }
@@ -459,6 +440,7 @@ function renderFavorites() {
 }
 
 function saveFavorite(name) {
+  if (favoriteMutationPending) return;
   const method = methodEl.value;
   const query = readKV(queryListEl);
   const headers = readKV(headersListEl);
@@ -470,16 +452,23 @@ function saveFavorite(name) {
   const hasCredential = headers.some(({ key }) => sensitivePatterns.includes(key.toLowerCase()));
 
   const favorite = { name, method, url, query, headers, body, gqlMode, gqlVariables: gqlVariables.value };
-  favorites.push(favorite);
-
+  favoriteMutationPending = true;
   chrome.storage.sync.get("options", ({ options }) => {
-    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
+    if (chrome.runtime.lastError) {
+      favoriteMutationPending = false;
+      showToast("Save failed - " + chrome.runtime.lastError.message);
+      return;
+    }
+    const nextFavorites = [...(Array.isArray(options?.favorites) ? options.favorites : []), favorite];
+    const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites: nextFavorites };
     chrome.storage.sync.set({ options: newOptions }, () => {
       if (chrome.runtime.lastError) {
-        favorites.pop(); // roll back optimistic push
-        showToast("Save failed: storage quota exceeded");
+        favoriteMutationPending = false;
+        showToast("Save failed - " + chrome.runtime.lastError.message);
         return;
       }
+      favoriteMutationPending = false;
+      favorites = nextFavorites;
       renderFavorites();
       showToast(hasCredential ? "Saved ⚠ contains credentials" : "Favorite saved");
     });
@@ -503,8 +492,8 @@ function applyFavorite() {
   );
   bodyEl.value = fav.body || "";
   if (fav.gqlMode) {
-    setGqlMode(true);
     gqlVariables.value = fav.gqlVariables || "";
+    setGqlMode(true);
   } else {
     disableGqlMode();
   }
@@ -513,6 +502,7 @@ function applyFavorite() {
 }
 
 function deleteFavorite() {
+  if (favoriteMutationPending) return;
   const idx = favoriteSelect.value;
   if (!idx || !favorites[Number(idx)]) {
     showToast("Select a favorite to delete");
@@ -520,14 +510,24 @@ function deleteFavorite() {
   }
 
   showConfirm(`Delete "${favorites[Number(idx)].name}"?`, () => {
-    favorites.splice(Number(idx), 1);
+    if (favoriteMutationPending) return;
+    favoriteMutationPending = true;
+    const nextFavorites = favorites.filter((_, index) => index !== Number(idx));
     chrome.storage.sync.get("options", ({ options }) => {
-      const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites };
+      if (chrome.runtime.lastError) {
+        favoriteMutationPending = false;
+        showToast("Delete failed - " + chrome.runtime.lastError.message);
+        return;
+      }
+      const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), favorites: nextFavorites };
       chrome.storage.sync.set({ options: newOptions }, () => {
         if (chrome.runtime.lastError) {
+          favoriteMutationPending = false;
           showToast("Delete failed: " + chrome.runtime.lastError.message);
           return;
         }
+        favoriteMutationPending = false;
+        favorites = nextFavorites;
         renderFavorites();
         showToast("Favorite deleted");
       });
@@ -582,6 +582,12 @@ function closeHelpModalFn() {
   helpBtn.focus();
 }
 
+function upsertAuth(container, key, value) {
+  const rows = Array.from(container.querySelectorAll(".kv-row"));
+  rows.filter(row => row.querySelector(".kv-key").value.trim().toLowerCase() === key.toLowerCase()).forEach(row => row.remove());
+  createKVRow(container, key, value);
+}
+
 function applyAuthTemplate() {
   const type = authType.value;
   
@@ -591,12 +597,12 @@ function applyAuthTemplate() {
       showToast("Enter a token");
       return;
     }
-    createKVRow(headersListEl, "Authorization", `Bearer ${token}`);
+    upsertAuth(headersListEl, "Authorization", `Bearer ${token}`);
     showToast("Bearer auth added");
   } else if (type === "basic") {
-    const username = basicUsername.value.trim();
-    const password = basicPassword.value.trim();
-    if (!username || !password) {
+    const username = basicUsername.value;
+    const password = basicPassword.value;
+    if (!username) {
       showToast("Enter username and password");
       return;
     }
@@ -609,7 +615,7 @@ function applyAuthTemplate() {
       // Use encodeURIComponent/unescape to safely handle non-ASCII characters
       // before passing to btoa, per RFC 7617 UTF-8 encoding for Basic auth.
       const encoded = btoa(unescape(encodeURIComponent(`${username}:${password}`)));
-      createKVRow(headersListEl, "Authorization", `Basic ${encoded}`);
+      upsertAuth(headersListEl, "Authorization", `Basic ${encoded}`);
       showToast("Basic auth added");
     } catch (err) {
       showToast("Invalid characters in credentials");
@@ -622,7 +628,7 @@ function applyAuthTemplate() {
       showToast("Enter key name and value");
       return;
     }
-    createKVRow(headersListEl, keyName, keyValue);
+    upsertAuth(headersListEl, keyName, keyValue);
     showToast("API key added");
   } else if (type === "apikey-query") {
     const keyName = apiKeyName.value.trim();
@@ -631,7 +637,7 @@ function applyAuthTemplate() {
       showToast("Enter key name and value");
       return;
     }
-    createKVRow(queryListEl, keyName, keyValue);
+    upsertAuth(queryListEl, keyName, keyValue);
     showToast("API key added");
   }
   
@@ -656,7 +662,7 @@ function renderHistory() {
     historyListEl.appendChild(hint);
     return;
   }
-  historyItems.forEach((item) => {
+  historyItems.slice(0, maxHistory).forEach((item) => {
     const el = document.createElement("div");
     el.className = "history-item";
 
@@ -719,14 +725,16 @@ function clearSendingState() {
   cancelBtn.style.display = "none";
 }
 
+function abortBackgroundRequest(requestId) {
+  if (!requestId) return;
+  chrome.runtime.sendMessage({ type: "cancel-request", payload: { requestId } }, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
 function cancelCurrentRequest() {
   if (!isRequestInFlight) return;
-  if (activeRequestId) {
-    chrome.runtime.sendMessage({
-      type: "cancel-request",
-      payload: { requestId: activeRequestId },
-    });
-  }
+  abortBackgroundRequest(activeRequestId);
   clearSendingState();
   statusBadge.textContent = "Cancelled";
   statusBadge.className = "badge warn";
@@ -736,87 +744,28 @@ function cancelCurrentRequest() {
 
 async function sendRequest() {
   if (isRequestInFlight) return; // prevent concurrent sends
+  const requestId = crypto.randomUUID();
+  activeRequestId = requestId;
+  isRequestInFlight = true;
+  sendBtn.disabled = sendBtnBottom.disabled = true;
+  cancelBtn.style.display = "";
   try {
-    const method = methodEl.value;
-    const envVars = getActiveEnvVars();
-    const query = readKV(queryListEl);
-    const headers = readKV(headersListEl);
-
-    // Apply environment variable substitution to URL components before parsing
-    const rawUrl = substituteVars(urlEl.value, envVars);
-    const substitutedQuery = query.map(({ key, value }) => ({
-      key,
-      value: substituteVars(value, envVars),
-    }));
-    let finalUrl = buildUrl(rawUrl, substitutedQuery);
-
-    if (!finalUrl) {
-      statusBadge.textContent = "Invalid URL";
-      statusBadge.className = "badge err";
-      showToast("Enter a valid URL");
-      return;
-    }
-
-    // Validate URL format
-    try {
-      new URL(finalUrl);
-    } catch (err) {
-      statusBadge.textContent = "Invalid URL";
-      statusBadge.className = "badge err";
-      showToast("URL format is invalid");
-      return;
-    }
-
-    const origin = originFromUrl(finalUrl);
-    const allowed = await ensureOriginPermission(origin);
+    const snapshot = snapshotRequest();
+    const { method, url: finalUrl, headers, body } = prepareRequest();
+    const headersObj = Object.fromEntries(headers.map(({ key, value }) => [key, value]));
+    const allowed = await ensureOriginPermission(originFromUrl(finalUrl));
+    if (activeRequestId !== requestId) return;
     if (!allowed) {
+      clearSendingState();
       statusBadge.textContent = "Permission denied";
       statusBadge.className = "badge err";
       responseMeta.textContent = "Allow host permission to send this request.";
-      showToast("Permission denied");
       return;
-    }
-
-    // Apply env var substitution to header values
-    const headersObj = headers.reduce((acc, { key, value }) => {
-      acc[key] = substituteVars(value, envVars);
-      return acc;
-    }, {});
-
-    let body = substituteVars(bodyEl.value, envVars);
-    if (isBodyless(method)) {
-      body = undefined;
-    } else if (gqlMode) {
-      // In GraphQL mode, build the standard {query, variables} envelope
-      const query_str = body || "";
-      let variables = {};
-      const rawVars = substituteVars(gqlVariables.value.trim(), envVars);
-      if (rawVars) {
-        try {
-          variables = JSON.parse(rawVars);
-        } catch (err) {
-          statusBadge.textContent = "GQL Error";
-          statusBadge.className = "badge err";
-          showToast("GraphQL variables: invalid JSON");
-          return;
-        }
-      }
-      body = JSON.stringify({ query: query_str, variables });
-      headersObj["Content-Type"] = "application/json";
-    } else if (
-      headersObj["Content-Type"]?.includes("application/json") &&
-      body && body.trim()
-    ) {
-      try {
-        body = JSON.stringify(JSON.parse(body));
-      } catch (err) {
-        // Keep as-is if not valid JSON.
-      }
     }
 
     // Show loading state and mark in-flight
     isRequestInFlight = true;
-    activeRequestId = crypto.randomUUID();
+    activeRequestId = requestId;
     sendBtn.disabled = true;
     sendBtnBottom.disabled = true;
     sendBtn.classList.add("loading");
@@ -828,11 +777,15 @@ async function sendRequest() {
     responseMeta.textContent = "";
     responseHeaders.textContent = "";
     responseBody.textContent = "";
+    delete responseBody.dataset.raw;
+    delete responseBody.dataset.bytes;
 
     // Guard: if the service worker is killed mid-request, the callback never fires.
     // After timeout + 5 s we recover the UI instead of hanging forever.
-    const effectiveTimeout = currentOptions.timeoutMs || 15000;
+    const effectiveTimeout = window.clampTimeoutMs(currentOptions.timeoutMs);
     swGuardTimeoutId = setTimeout(() => {
+      if (activeRequestId !== requestId) return;
+      abortBackgroundRequest(requestId);
       clearSendingState();
       statusBadge.textContent = "SW Error";
       statusBadge.className = "badge err";
@@ -853,12 +806,14 @@ async function sendRequest() {
         },
       },
       (res) => {
+        const runtimeError = chrome.runtime.lastError;
+        if (activeRequestId !== requestId) return;
         clearSendingState();
-        if (chrome.runtime.lastError) {
+        if (runtimeError) {
           statusBadge.textContent = "Error";
           statusBadge.className = "badge err";
           responseMeta.textContent = "Connection error";
-          responseBody.textContent = chrome.runtime.lastError.message;
+          responseBody.textContent = runtimeError.message;
           showToast("Connection error");
           return;
         }
@@ -881,6 +836,8 @@ async function sendRequest() {
           return;
         }
 
+        responseBody.dataset.raw = res.body || "";
+        responseBody.dataset.bytes = String(res.bodyBytes ?? new Blob([res.body || ""]).size);
         const statusClass =
           res.status >= 200 && res.status < 300
             ? "ok"
@@ -893,7 +850,7 @@ async function sendRequest() {
         const headerLines = (res.headers || []).map(([k, v]) => `${k}: ${v}`);
         const headerBlock = [`HTTP ${res.status} ${res.statusText}`, ...headerLines];
         responseHeaders.innerHTML = highlightHeaders(headerBlock);
-        const isJson =
+        const isJson = (res.body || "").length <= 200000 && (
           (res.headers || []).some(
             ([k, v]) => k.toLowerCase() === "content-type" && v.toLowerCase().includes("json")
           ) ||
@@ -904,7 +861,7 @@ async function sendRequest() {
             } catch (err) {
               return false;
             }
-          })();
+          })());
         if (isJson) {
           const pretty = prettifyJsonMaybe(res.body || "");
           responseBody.innerHTML = highlightJson(pretty);
@@ -921,18 +878,11 @@ async function sendRequest() {
           const timestamp = `${now.toLocaleDateString()} ${now
             .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             .toString()}`;
-          const entry = {
-            method,
-            url: finalUrl,
-            headers,
-            query,
-            body: bodyEl.value,
-            gqlMode,
-            gqlVariables: gqlVariables.value,
-            timestamp,
-          };
+          const entry = { ...snapshot, timestamp };
           historyItems = [entry, ...historyItems].slice(0, maxHistory);
-          chrome.storage.local.set({ history: historyItems });
+          chrome.storage.local.set({ history: historyItems }, () => {
+            if (chrome.runtime.lastError) showToast("Response received but history could not be saved");
+          });
           renderHistory();
         }
       }
@@ -940,7 +890,7 @@ async function sendRequest() {
 
     saveState();
   } catch (err) {
-    console.error("sendRequest error:", err);
+    if (activeRequestId !== requestId) return;
     clearSendingState();
     statusBadge.textContent = "Client Error";
     statusBadge.className = "badge err";
@@ -954,24 +904,16 @@ function shellEscape(str) {
 }
 
 function buildCurl() {
-  const method = methodEl.value;
-  const query = readKV(queryListEl);
-  const headers = readKV(headersListEl);
-  const finalUrl = buildUrl(urlEl.value, query) || urlEl.value;
-  const lines = [`curl -X ${method} ${shellEscape(finalUrl)}`];
-
+  const { method, url, headers, body } = prepareRequest();
+  const lines = [`curl -X ${method} ${shellEscape(url)}`];
   headers.forEach(({ key, value }) => lines.push(`  -H ${shellEscape(`${key}: ${value}`)}`));
-
-  if (!isBodyless(method) && bodyEl.value.trim()) {
-    lines.push(`  --data ${shellEscape(bodyEl.value)}`);
-  }
-
+  if (body) lines.push(`  --data-raw ${shellEscape(body)}`);
   return lines.join(" \\\n");
 }
 
 async function copyCurl() {
-  const text = buildCurl();
   try {
+    const text = buildCurl();
     await navigator.clipboard.writeText(text);
     statusBadge.textContent = "cURL copied";
     statusBadge.className = "badge ok";
@@ -979,11 +921,12 @@ async function copyCurl() {
   } catch (err) {
     statusBadge.textContent = "Clipboard blocked";
     statusBadge.className = "badge warn";
-    showToast("Clipboard blocked");
+    showToast(err.message || "Clipboard blocked");
   }
 }
 
 function resetForm() {
+  cancelCurrentRequest();
   methodEl.value = "GET";
   urlEl.value = currentOptions.defaultUrl || "";
   queryListEl.innerHTML = "";
@@ -1003,6 +946,8 @@ function resetForm() {
   responseMeta.textContent = "";
   responseHeaders.textContent = "";
   responseBody.textContent = "";
+  delete responseBody.dataset.raw;
+  delete responseBody.dataset.bytes;
 
   updatePreview();
   saveState();
@@ -1061,7 +1006,7 @@ async function copyText(text) {
 }
 
 function downloadBody() {
-  const blob = new Blob([responseBody.innerText || ""], { type: "text/plain" });
+  const blob = new Blob([responseBody.dataset.raw ?? responseBody.textContent ?? ""], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -1127,7 +1072,7 @@ themeBtn.addEventListener("click", cycleTheme);
 applyPresetBtn.addEventListener("click", applyPreset);
 clearHistoryBtn.addEventListener("click", clearHistory);
 copyHeadersBtn.addEventListener("click", () => copyText(responseHeaders.innerText));
-copyBodyBtn.addEventListener("click", () => copyText(responseBody.innerText));
+copyBodyBtn.addEventListener("click", () => copyText(responseBody.dataset.raw ?? responseBody.textContent));
 saveBodyBtn.addEventListener("click", downloadBody);
 
 // Favorites
@@ -1166,6 +1111,7 @@ envSelect.addEventListener("change", () => {
     chrome.storage.sync.set({ options: newOptions });
   });
   updateEnvVarCount();
+  updatePreview();
 });
 
 // Auth
@@ -1218,7 +1164,7 @@ confirmModal.addEventListener("click", (e) => {
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   // Ctrl+Enter or Cmd+Enter: Send request
-  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !document.querySelector(".modal.show")) {
     e.preventDefault();
     if (!isRequestInFlight) sendRequest();
     return;
@@ -1294,17 +1240,26 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const newOpts = changes.options.newValue || {};
     currentOptions = { ...DEFAULT_OPTIONS, ...newOpts };
     maxHistory = clampHistorySize(currentOptions.historySize ?? DEFAULT_OPTIONS.historySize);
-    favorites = currentOptions.favorites || [];
+    favorites = Array.isArray(currentOptions.favorites) ? currentOptions.favorites : [];
     applyTheme(currentOptions.theme);
     renderFavorites();
     renderEnvSelect();
+    renderHistory();
+    updatePreview();
   }
   if (area === "sync" && changes.environments) {
     currentEnvironments = changes.environments.newValue || [];
     renderEnvSelect();
+    renderHistory();
+    updatePreview();
   }
   if (area === "local" && changes.history) {
     historyItems = changes.history.newValue || [];
     renderHistory();
   }
+});
+
+window.addEventListener("pagehide", () => {
+  saveState();
+  abortBackgroundRequest(activeRequestId);
 });

@@ -1,162 +1,8 @@
-/**
- * Tests for popup/codegen.js — pure generator functions.
- * We extract the pure generator internals for unit testing.
- */
-
-// ── Helpers (mirrors codegen.js internals) ─────────────────────────────────
-
-function shellEscape(str) {
-  return "'" + str.replace(/'/g, "'\"'\"'") + "'";
-}
-
-function toHeadersObj(headers) {
-  return headers.reduce((acc, { key, value }) => { acc[key] = value; return acc; }, {});
-}
-
-function getContentType(headers) {
-  const ct = headers.find((h) => h.key.toLowerCase() === "content-type");
-  return ct ? ct.value : "text/plain";
-}
-
-function codegenCurl({ method, url, headers, body }) {
-  const lines = ["curl -X " + method + " " + shellEscape(url)];
-  headers.forEach(({ key, value }) =>
-    lines.push("  -H " + shellEscape(key + ": " + value))
-  );
-  if (body.trim()) lines.push("  --data-raw " + shellEscape(body));
-  return lines.join(" \\\n");
-}
-
-function codegenPython({ method, url, headers, body }) {
-  const lines = ["import requests", ""];
-  const args = [JSON.stringify(url)];
-  if (headers.length) { lines.push("headers = " + JSON.stringify(toHeadersObj(headers), null, 4), ""); args.push("headers=headers"); }
-  if (body.trim()) { lines.push("payload = " + JSON.stringify(body), ""); args.push("data=payload"); }
-  lines.push("response = requests." + method.toLowerCase() + "(" + args.join(", ") + ")");
-  lines.push("print(response.status_code)", "print(response.text)");
-  return lines.join("\n");
-}
-
-function codegenFetch({ method, url, headers, body }) {
-  const opts = { method };
-  if (headers.length) opts.headers = toHeadersObj(headers);
-  if (body.trim()) opts.body = body;
-  return [
-    "fetch(" + JSON.stringify(url) + ", " + JSON.stringify(opts, null, 2) + ")",
-    "  .then(res => res.json())",
-    "  .then(data => console.log(data))",
-    "  .catch(err => console.error('Error:', err));",
-  ].join("\n");
-}
-
-function codegenPhp({ method, url, headers, body }) {
-  const lines = [
-    "<?php",
-    "$ch = curl_init();",
-    "curl_setopt($ch, CURLOPT_URL, " + JSON.stringify(url) + ");",
-    "curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);",
-    "curl_setopt($ch, CURLOPT_CUSTOMREQUEST, " + JSON.stringify(method) + ");",
-  ];
-  if (headers.length) {
-    const hs = headers.map(({ key, value }) => "    '" + key + ": " + value + "'").join(",\n");
-    lines.push("curl_setopt($ch, CURLOPT_HTTPHEADER, [\n" + hs + "\n]);");
-  }
-  if (body.trim()) lines.push("curl_setopt($ch, CURLOPT_POSTFIELDS, " + JSON.stringify(body) + ");");
-  lines.push("$response = curl_exec($ch);", "curl_close($ch);", "echo $response;");
-  return lines.join("\n");
-}
-
-function codegenJava({ method, url, headers, body }) {
-  const lines = ["import okhttp3.*;", "", "OkHttpClient client = new OkHttpClient();", ""];
-  const requestHeaders = headers.filter(({ key }) => key.toLowerCase() !== "content-type");
-  let bodyVar = "null";
-  if (body.trim()) {
-    const ct = getContentType(headers);
-    lines.push('MediaType mediaType = MediaType.parse("' + ct + '");');
-    lines.push("RequestBody body = RequestBody.create(" + JSON.stringify(body) + ", mediaType);");
-    lines.push("");
-    bodyVar = "body";
-  }
-  lines.push("Request request = new Request.Builder()");
-  lines.push("  .url(" + JSON.stringify(url) + ")");
-  requestHeaders.forEach(({ key, value }) => lines.push('  .addHeader("' + key + '", "' + value + '")'));
-  lines.push('  .method("' + method + '", ' + bodyVar + ")");
-  lines.push("  .build();", "");
-  lines.push("try (Response response = client.newCall(request).execute()) {");
-  lines.push("  System.out.println(response.body().string());");
-  lines.push("}");
-  return lines.join("\n");
-}
-
-function codegenCsharp({ method, url, headers, body }) {
-  const requestHeaders = headers.filter(({ key }) => key.toLowerCase() !== "content-type");
-  const lines = ["using var client = new HttpClient();", ""];
-  lines.push(
-    "var request = new HttpRequestMessage(new HttpMethod(" + JSON.stringify(method) + "), " + JSON.stringify(url) + ");"
-  );
-  requestHeaders.forEach(({ key, value }) =>
-    lines.push('request.Headers.TryAddWithoutValidation("' + key + '", "' + value + '");')
-  );
-  if (body.trim()) {
-    const ct = getContentType(headers);
-    lines.push(
-      "request.Content = new StringContent(" + JSON.stringify(body) + ', System.Text.Encoding.UTF8, "' + ct + '");'
-    );
-  }
-  lines.push("", "var response = await client.SendAsync(request);");
-  lines.push("var result = await response.Content.ReadAsStringAsync();", "Console.WriteLine(result);");
-  return lines.join("\n");
-}
-
-function codegenNodeAxios({ method, url, headers, body }) {
-  const lines = ["const axios = require('axios');", ""];
-  const cfg = ["  method: '" + method.toLowerCase() + "',", "  url: " + JSON.stringify(url) + ","];
-  if (headers.length) cfg.push("  headers: " + JSON.stringify(toHeadersObj(headers), null, 4) + ",");
-  if (body.trim()) cfg.push("  data: " + JSON.stringify(body));
-  lines.push("axios({", ...cfg, "})");
-  lines.push("  .then(res => console.log(JSON.stringify(res.data)))");
-  lines.push("  .catch(err => console.error(err));");
-  return lines.join("\n");
-}
-
-// ── Tests ──────────────────────────────────────────────────────────────────
-
-describe("shellEscape", () => {
-  test("wraps bare string in single quotes", () => {
-    expect(shellEscape("hello world")).toBe("'hello world'");
-  });
-  test("escapes embedded single quotes", () => {
-    expect(shellEscape("it's")).toBe("'it'\"'\"'s'");
-  });
-  test("handles empty string", () => {
-    expect(shellEscape("")).toBe("''");
-  });
-});
-
-describe("toHeadersObj", () => {
-  test("converts array to object", () => {
-    const result = toHeadersObj([
-      { key: "Accept", value: "application/json" },
-      { key: "X-Token", value: "abc" },
-    ]);
-    expect(result).toEqual({ Accept: "application/json", "X-Token": "abc" });
-  });
-  test("returns empty object for empty array", () => {
-    expect(toHeadersObj([])).toEqual({});
-  });
-});
-
-describe("getContentType", () => {
-  test("returns header value when present", () => {
-    expect(getContentType([{ key: "Content-Type", value: "application/json" }])).toBe("application/json");
-  });
-  test("is case-insensitive for key lookup", () => {
-    expect(getContentType([{ key: "content-type", value: "text/xml" }])).toBe("text/xml");
-  });
-  test("defaults to text/plain", () => {
-    expect(getContentType([])).toBe("text/plain");
-  });
-});
+require("../popup/codegen.js");
+const {
+  curl: codegenCurl, python: codegenPython, "javascript-fetch": codegenFetch,
+  php: codegenPhp, java: codegenJava, csharp: codegenCsharp, "node-axios": codegenNodeAxios,
+} = window.QuickCodegen.generators;
 
 describe("codegenCurl", () => {
   const base = { method: "GET", url: "https://api.example.com/users", headers: [], body: "" };
@@ -231,7 +77,7 @@ describe("codegenFetch", () => {
   test("generates fetch call", () => {
     const output = codegenFetch({ method: "GET", url: "https://api.example.com", headers: [], body: "" });
     expect(output).toContain("fetch(");
-    expect(output).toContain(".then(res => res.json())");
+    expect(output).toContain(".then(res => res.text())");
   });
 
   test("includes body in opts for POST", () => {
@@ -349,4 +195,19 @@ describe("codegenNodeAxios", () => {
     });
     expect(output).toContain("data:");
   });
+});
+
+test('Java creates an empty body for methods that require one', () => {
+  expect(codegenJava({ method: 'POST', url: 'https://example.com', headers: [], body: '' })).toContain('.method("POST", body)');
+});
+test('Java and C# escape quoted header values', () => {
+  const request = { method: 'GET', url: 'https://example.com', headers: [{ key: 'If-Match', value: '"etag"' }], body: '' };
+  expect(codegenJava(request)).toContain('"\\"etag\\""');
+  expect(codegenCsharp(request)).toContain('"\\"etag\\""');
+});
+test('PHP prevents variable interpolation and escapes literal quotes', () => {
+  const output = codegenPhp({ method: 'POST', url: 'https://example.com/$id', headers: [{ key: 'X-Name', value: "O'Reilly" }], body: '$secret' });
+  expect(output).toContain("'https://example.com/$id'");
+  expect(output).toContain("'X-Name: O\\'Reilly'");
+  expect(output).toContain("CURLOPT_POSTFIELDS, '$secret'");
 });
