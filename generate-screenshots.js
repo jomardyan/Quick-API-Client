@@ -31,6 +31,8 @@ async function run() {
                 ok: true,
                 status: 200,
                 statusText: "OK",
+                type: "basic",
+                url: "https://api.example.com/users",
                 headers: [
                   ["content-type", "application/json; charset=utf-8"],
                   ["cache-control", "max-age=43200"],

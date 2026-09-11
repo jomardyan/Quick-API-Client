@@ -1,85 +1,14 @@
-/**
- * Unit tests for pure utility functions extracted from popup.js and options.js.
- * These functions have no DOM or chrome API dependencies and can be tested directly.
- */
-
-// ── Functions under test (copy-tested from source) ────────────────────────────
-// We duplicate the pure functions here to keep tests independent of the
-// browser extension DOM context.  When a bundler is introduced these will
-// be importable from a shared lib module instead.
-
-function buildUrl(rawUrl, queryParams) {
-  let normalized = rawUrl.trim();
-  if (normalized && !/^https?:\/\//i.test(normalized)) {
-    normalized = `https://${normalized}`;
-  }
-  let urlObj;
-  try {
-    urlObj = new URL(normalized);
-  } catch (err) {
-    return null;
-  }
-  queryParams.forEach(({ key, value }) => urlObj.searchParams.set(key, value));
-  return urlObj.toString();
-}
-
-function prettifyJsonMaybe(text) {
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch (err) {
-    return text;
-  }
-}
-
-function shellEscape(str) {
-  return `'${str.replace(/'/g, `'"'"'`)}'`;
-}
-
-function isBodyless(method) {
-  return ["GET", "HEAD"].includes(method);
-}
-
-function substituteVars(text, vars) {
-  if (!text || !vars.length) return text;
-  return text.replace(/\{\{([^}]+)\}\}/g, (match, name) => {
-    const entry = vars.find((v) => v.key === name.trim());
-    return entry !== undefined ? entry.value : match;
-  });
-}
-
-function clampHistorySize(size) {
-  const num = Number(size);
-  if (!Number.isFinite(num)) return 8;
-  return Math.max(0, Math.min(50, num));
-}
-
-function parseKVText(text) {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => ({
-          key: item.key?.trim?.() || "",
-          value: item.value ?? "",
-        }))
-        .filter((kv) => kv.key);
-    }
-  } catch (err) {
-    // fallback
-  }
-  return trimmed
-    .split("\n")
-    .map((line) => {
-      const [key, ...rest] = line.split(":");
-      if (!key) return null;
-      return { key: key.trim(), value: rest.join(":").trim() };
-    })
-    .filter((kv) => kv && kv.key);
-}
-
-// ── buildUrl ──────────────────────────────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
+require('./load-popup')();
+const { buildUrl, substituteVars } = window.QuickRequest;
+const { prettifyJsonMaybe, shellEscape, clampHistorySize } = window;
+// Read the actual options parser in its own context, without bootstrapping its UI.
+const source = fs.readFileSync(path.join(__dirname, '../options.js'), 'utf8');
+const parser = source.slice(source.indexOf('function parseKVText('), source.indexOf('function kvToDisplay('));
+window.eval(parser);
+const { parseKVText } = window;
+const isBodyless = method => window.QuickRequest.prepare({ method, url: "https://example.com", body: "payload" }).body === "";
 
 describe("buildUrl", () => {
   test("returns full URL with query params appended", () => {
@@ -223,8 +152,8 @@ describe("substituteVars", () => {
   });
 
   test("handles null/undefined text gracefully", () => {
-    expect(substituteVars(null, vars)).toBeNull();
-    expect(substituteVars(undefined, vars)).toBeUndefined();
+    expect(substituteVars(null, vars)).toBe("");
+    expect(substituteVars(undefined, vars)).toBe("");
   });
 
   test("substitutes variable in header value", () => {

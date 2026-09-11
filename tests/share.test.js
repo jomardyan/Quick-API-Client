@@ -1,28 +1,6 @@
-/**
- * Tests for popup/share.js — encode / decode functions.
- */
-
-// ── encode / decode (mirrors share.js internals) ─────────────────────────
-
+require("../popup/share.js");
+const { encode, decode } = window.QuickShare;
 const FORMAT_VERSION = 1;
-
-function encode(snap) {
-  const json = JSON.stringify(snap);
-  return btoa(unescape(encodeURIComponent(json)));
-}
-
-function decode(encoded) {
-  try {
-    const json = decodeURIComponent(escape(atob(encoded.trim())));
-    const obj = JSON.parse(json);
-    if (typeof obj !== "object" || !obj.method || !obj.url) return null;
-    return obj;
-  } catch (_) {
-    return null;
-  }
-}
-
-// ── Fixture ───────────────────────────────────────────────────────────────
 
 const BASE_SNAP = {
   v: FORMAT_VERSION,
@@ -114,4 +92,17 @@ describe("decode with invalid input", () => {
     const encoded = "  " + encode(BASE_SNAP) + "  ";
     expect(decode(encoded)).not.toBeNull();
   });
+});
+
+test.each([
+  { ...BASE_SNAP, headers: 'bad' },
+  { ...BASE_SNAP, headers: [null] },
+  { ...BASE_SNAP, query: [{ key: {}, value: 'bad' }] },
+  { ...BASE_SNAP, body: {} },
+  { ...BASE_SNAP, v: 999 },
+  { ...BASE_SNAP, method: 'INVALID' },
+  { ...BASE_SNAP, gqlMode: 'true' },
+])('rejects malformed imports without partially applying them', snap => {
+  expect(decode(encode(snap))).toBeNull();
+  expect(window.QuickShare.applySnapshot(snap)).toBe(false);
 });

@@ -1,34 +1,5 @@
-/**
- * Tests for popup/timing.js — pure utility functions.
- */
-
-// ── Utilities (mirrors timing.js internals) ───────────────────────────────
-
-const TIERS = [
-  { max: 200,      label: "Excellent", color: "#4ade80" },
-  { max: 500,      label: "Good",      color: "#a3e635" },
-  { max: 1000,     label: "Fair",      color: "#facc15" },
-  { max: 3000,     label: "Slow",      color: "#fb923c" },
-  { max: Infinity, label: "Very slow", color: "#f87171" },
-];
-
-function getTier(ms) {
-  return TIERS.find((t) => ms < t.max) || TIERS[TIERS.length - 1];
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return "0 B";
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(2) + " MB";
-}
-
-function parseElapsed(metaText) {
-  const match = (metaText || "").match(/^(\d+)ms\b/);
-  return match ? parseInt(match[1], 10) : null;
-}
-
-// ── getTier ───────────────────────────────────────────────────────────────
+require("../popup/timing.js");
+const { parseElapsed, getTier, formatBytes } = window.QuickTiming;
 
 describe("getTier", () => {
   test("< 200 ms = Excellent", () => {

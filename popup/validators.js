@@ -108,37 +108,18 @@
   function validateCSS(text) {
     const trimmed = text.trim();
     if (!trimmed) return { valid: false, message: "Empty input." };
-    let el = null;
     try {
-      el = document.createElement("style");
-      el.setAttribute("data-codegen-temp", "1");
-      // Use a shadow host to avoid polluting page styles
-      const host = document.createElement("div");
-      host.style.display = "none";
-      document.body.appendChild(host);
-      const shadow = host.attachShadow({ mode: "closed" });
-      shadow.appendChild(el);
-      el.textContent = trimmed;
-
-      const rules = el.sheet ? el.sheet.cssRules.length : 0;
-      document.body.removeChild(host);
-
-      if (rules === 0 && trimmed.includes("{")) {
-        return {
-          valid: false,
-          message: "CSS may contain errors.",
-          detail:
-            "0 valid rules found — check for missing braces, unknown at-rules, or malformed selectors.",
-        };
-      }
+      // Detached stylesheet prevents response CSS from styling the extension or loading URLs.
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(trimmed);
+      const rules = sheet.cssRules.length;
       return {
-        valid: true,
-        message: "CSS parsed successfully.",
-        detail: rules + " rule" + (rules !== 1 ? "s" : "") + " found.",
+        valid: rules > 0,
+        message: rules ? "CSS parsed. Invalid declarations may have been discarded." : "No CSS rules could be parsed.",
+        detail: rules + " rules parsed. This is a browser parse check, not a full CSS validator.",
       };
     } catch (err) {
-      if (el && el.parentNode) el.parentNode.removeChild(el);
-      return { valid: false, message: "CSS validation threw an exception.", detail: err.message };
+      return { valid: false, message: "CSS parsing failed.", detail: err.message };
     }
   }
 
@@ -150,17 +131,17 @@
    */
   function detectContentType() {
     const headerText = (
-      document.getElementById("responseHeaders")?.innerText || ""
+      document.getElementById("responseHeaders")?.textContent || ""
     ).toLowerCase();
-    if (headerText.includes("application/json") || headerText.includes("text/json")) return "json";
+    if (headerText.includes("+json") || headerText.includes("application/json") || headerText.includes("text/json")) return "json";
     if (headerText.includes("application/xml") || headerText.includes("text/xml") || headerText.includes("+xml")) return "xml";
     if (headerText.includes("text/html")) return "html";
     if (headerText.includes("text/css")) return "css";
     // Fallback: try to guess from body content
-    const body = (document.getElementById("responseBody")?.innerText || "").trimStart();
+    const body = (document.getElementById("responseBody")?.dataset.raw ?? document.getElementById("responseBody")?.textContent ?? "").trimStart();
     if (body.startsWith("{") || body.startsWith("[")) return "json";
-    if (body.startsWith("<?xml") || body.startsWith("<") ) return "xml";
-    if (/<!doctype\s+html/i.test(body.slice(0, 20))) return "html";
+    if (/^(?:<!doctype\s+html|<html[\s>])/i.test(body)) return "html";
+    if (body.startsWith("<")) return "xml";
     return "json"; // safe default
   }
 
@@ -187,7 +168,7 @@
     if (!validateBtn || !modal) return;
 
     function getBodyText() {
-      return document.getElementById("responseBody")?.innerText || "";
+      return document.getElementById("responseBody")?.dataset.raw ?? document.getElementById("responseBody")?.textContent ?? "";
     }
 
     function runValidation() {

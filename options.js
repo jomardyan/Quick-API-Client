@@ -4,7 +4,7 @@ const clampHistorySize =
   ((size) => {
     const num = Number(size);
     if (!Number.isFinite(num)) return DEFAULT_OPTIONS.historySize;
-    return Math.max(0, Math.min(50, num));
+    return Math.max(0, Math.min(50, Math.floor(num)));
   });
 
 const themeSelect = document.getElementById("themeSelect");
@@ -86,8 +86,8 @@ function parseKVText(text) {
     if (Array.isArray(parsed)) {
       return parsed
         .map((item) => ({
-          key: item.key?.trim?.() || "",
-          value: item.value ?? "",
+          key: item?.key?.trim?.() || "",
+          value: String(item?.value ?? ""),
         }))
         .filter((kv) => kv.key);
     }
@@ -127,7 +127,7 @@ function loadOptions() {
 }
 
 function saveOptions() {
-  const timeoutMs = Math.max(1000, Math.min(60000, Number(timeoutSeconds.value) * 1000));
+  const timeoutMs = window.clampTimeoutMs(Number(timeoutSeconds.value) * 1000);
   const size = clampHistorySize(historySize.value);
   chrome.storage.sync.get("options", ({ options }) => {
     const existing = options || {};
@@ -157,10 +157,22 @@ function saveOptions() {
 }
 
 function resetOptions() {
-  chrome.storage.sync.set({ options: DEFAULT_OPTIONS }, () => {
-    loadOptions();
-    statusEl.textContent = "Reset to defaults.";
-    setTimeout(() => (statusEl.textContent = ""), 1800);
+  chrome.storage.sync.get("options", ({ options }) => {
+    if (chrome.runtime.lastError) {
+      statusEl.textContent = "Reset failed - " + chrome.runtime.lastError.message;
+      return;
+    }
+    // Preferences reset must not delete saved requests.
+    const reset = { ...DEFAULT_OPTIONS, favorites: options?.favorites || [] };
+    chrome.storage.sync.set({ options: reset }, () => {
+      if (chrome.runtime.lastError) {
+        statusEl.textContent = "Reset failed - " + chrome.runtime.lastError.message;
+        return;
+      }
+      loadOptions();
+      statusEl.textContent = "Reset to defaults.";
+      setTimeout(() => (statusEl.textContent = ""), 1800);
+    });
   });
 }
 
@@ -179,25 +191,43 @@ function clearHistory() {
 
 function loadEnvironments() {
   chrome.storage.sync.get("environments", ({ environments: stored }) => {
-    environments = stored || [];
+    environments = Array.isArray(stored) ? stored : [];
     renderEnvSelect();
   });
 }
 
-function saveCurrentEnv() {
+function saveCurrentEnv(callback) {
   if (selectedEnvIdx < 0 || selectedEnvIdx >= environments.length) return;
-  environments[selectedEnvIdx].name = envNameInput.value.trim() || environments[selectedEnvIdx].name;
+  const name = envNameInput.value.trim() || environments[selectedEnvIdx].name;
+  if (environments.some((env, idx) => idx !== selectedEnvIdx && env.name === name)) {
+    statusEl.textContent = "An environment with this name already exists.";
+    return;
+  }
+  const previousName = environments[selectedEnvIdx].name;
+  environments[selectedEnvIdx].name = name;
   environments[selectedEnvIdx].vars = parseKVText(envVarsInput.value);
-  persistEnvironments();
+  persistEnvironments(callback, previousName, name);
 }
 
-function persistEnvironments(callback) {
-  chrome.storage.sync.set({ environments }, () => {
-    if (chrome.runtime.lastError) {
-      statusEl.textContent = "Env save failed: " + chrome.runtime.lastError.message;
-      return;
+function persistEnvironments(callback, previousName, nextName) {
+  const snapshot = environments.map(env => ({ ...env, vars: env.vars.map(item => ({ ...item })) }));
+  [addEnvBtn, deleteEnvBtn, saveEnvBtn].forEach(button => { button.disabled = true; });
+  const fail = error => {
+    statusEl.textContent = "Env save failed - " + error.message;
+    loadEnvironments();
+    [addEnvBtn, deleteEnvBtn, saveEnvBtn].forEach(button => { button.disabled = false; });
+  };
+  chrome.storage.sync.get("options", ({ options }) => {
+    if (chrome.runtime.lastError) { fail(chrome.runtime.lastError); return; }
+    const update = { environments: snapshot };
+    if (previousName && options?.activeEnvironment === previousName) {
+      update.options = { ...options, activeEnvironment: nextName || "" };
     }
-    if (callback) callback();
+    chrome.storage.sync.set(update, () => {
+      if (chrome.runtime.lastError) { fail(chrome.runtime.lastError); return; }
+      [addEnvBtn, deleteEnvBtn, saveEnvBtn].forEach(button => { button.disabled = false; });
+      if (callback) callback();
+    });
   });
 }
 
@@ -237,7 +267,9 @@ function renderEnvEditor() {
 }
 
 addEnvBtn.addEventListener("click", () => {
-  environments.push({ name: `Environment ${environments.length + 1}`, vars: [] });
+  let number = environments.length + 1;
+  while (environments.some(env => env.name === `Environment ${number}`)) number++;
+  environments.push({ name: `Environment ${number}`, vars: [] });
   selectedEnvIdx = environments.length - 1;
   persistEnvironments(() => {
     renderEnvSelect();
@@ -251,15 +283,16 @@ deleteEnvBtn.addEventListener("click", () => {
   showConfirm(`Delete environment "${name}"?`, () => {
     environments.splice(selectedEnvIdx, 1);
     selectedEnvIdx = Math.min(selectedEnvIdx, environments.length - 1);
-    persistEnvironments(renderEnvSelect);
+    persistEnvironments(renderEnvSelect, name, "");
   });
 });
 
 saveEnvBtn.addEventListener("click", () => {
-  saveCurrentEnv();
-  renderEnvSelect();
-  statusEl.textContent = "Environment saved.";
-  setTimeout(() => (statusEl.textContent = ""), 1800);
+  saveCurrentEnv(() => {
+    renderEnvSelect();
+    statusEl.textContent = "Environment saved.";
+    setTimeout(() => (statusEl.textContent = ""), 1800);
+  });
 });
 
 envNameSelect.addEventListener("change", () => {

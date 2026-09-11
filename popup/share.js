@@ -66,9 +66,18 @@
    */
   function decode(encoded) {
     try {
+      if (typeof encoded !== "string" || encoded.length > 2 * 1024 * 1024) return null;
       const json = decodeURIComponent(escape(atob(encoded.trim())));
       const obj  = JSON.parse(json);
-      if (typeof obj !== "object" || !obj.method || !obj.url) return null;
+      if (!obj || Array.isArray(obj) || typeof obj !== "object") return null;
+      if (obj.v !== FORMAT_VERSION || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(obj.method)) return null;
+      if (typeof obj.url !== "string" || !obj.url.trim()) return null;
+      for (const key of ["query", "headers"]) {
+        if (obj[key] !== undefined && (!Array.isArray(obj[key]) || obj[key].length > 200 || obj[key].some(item =>
+          !item || typeof item.key !== "string" || typeof item.value !== "string"))) return null;
+      }
+      if (["body", "gqlVariables"].some(key => obj[key] !== undefined && typeof obj[key] !== "string")) return null;
+      if (obj.gqlMode !== undefined && typeof obj.gqlMode !== "boolean") return null;
       return obj;
     } catch (_) {
       return null;
@@ -83,6 +92,7 @@
    * (all defined at window scope in popup.js and available to subsequent scripts).
    */
   function applySnapshot(snap) {
+    if (!decode(encode(snap))) return false;
     const methodEl  = document.getElementById("method");
     const urlEl     = document.getElementById("url");
     const bodyEl    = document.getElementById("body");
@@ -109,8 +119,8 @@
 
     // GraphQL mode
     if (snap.gqlMode && typeof setGqlMode === "function") {
-      setGqlMode(true);
       if (gqlVarEl) gqlVarEl.value = snap.gqlVariables || "";
+      setGqlMode(true);
     } else if (typeof setGqlMode === "function") {
       setGqlMode(false);
     }

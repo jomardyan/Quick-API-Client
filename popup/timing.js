@@ -48,10 +48,10 @@
 
   // ── Render the timing panel ────────────────────────────────────────────────
 
-  function render(panel, elapsed, bodyText) {
+  function render(panel, elapsed, bodyText, bodyBytes) {
     const tier      = getTier(elapsed);
     const barPct    = Math.min(100, (elapsed / 5000) * 100).toFixed(1);
-    const size      = new Blob([bodyText]).size;
+    const size      = Number.isFinite(bodyBytes) ? bodyBytes : new Blob([bodyText]).size;
     const throughput =
       elapsed > 0 ? ((size / 1024) / (elapsed / 1000)).toFixed(1) : "—";
 
@@ -135,7 +135,8 @@
         panel.innerHTML = "";
         return;
       }
-      render(panel, elapsed, bodyEl ? (bodyEl.innerText || "") : "");
+      render(panel, elapsed, bodyEl ? (bodyEl.dataset.raw ?? bodyEl.textContent ?? "") : "",
+        bodyEl?.dataset.bytes === undefined ? undefined : Number(bodyEl.dataset.bytes));
     });
 
     observer.observe(metaEl, {

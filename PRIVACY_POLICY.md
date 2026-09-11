@@ -1,74 +1,33 @@
 # Privacy Policy for Quick API Client
 
-**Effective date:** 2025-01-01  
+Effective date 2026-09-11
 
-This Privacy Policy describes how the browser extension **Quick API Client** (the "Extension") provided by **Hayk Jomardyan** ("we", "us", or "our") handles information when used in supported browsers, including Google Chrome and Microsoft Edge.
+Quick API Client is provided by Hayk Jomardyan. This policy describes the extension's implemented data handling.
 
-By installing or using the Extension, you acknowledge that you have read and understood this Privacy Policy.
+## API requests
 
-## 1. Scope
+When you send a request, the extension transmits its URL, query parameters, headers and body directly to the selected API server. That server receives the connection's IP address and any credentials or personal information you include. Redirects follow browser networking rules. The extension omits browser cookies from its fetch requests.
 
-This Privacy Policy applies solely to the Extension as distributed through:
-- The Chrome Web Store for Google Chrome and other Chromium-based browsers.
-- The Microsoft Edge Add-ons store for Microsoft Edge.
+The extension does not send request data to a developer-operated relay, analytics service or advertising service. It does not monitor general browsing activity.
 
-It does not apply to any websites, services, or applications that may be linked from the Extension but are operated by third parties under their own privacy policies.
+## Browser storage
 
-## 2. Data collection and processing
+The extension saves the most recent request and enabled request history in local extension storage. These records may include URLs, headers, credentials and bodies entered by the user.
 
-- The Extension does **not** collect, store, or process any personal data or personally identifiable information (PII).  
-- The Extension does **not** collect or transmit your browsing history, URLs, search queries, IP address, device identifiers, cookies, or similar identifiers.  
-- The Extension does **not** track your behavior across websites, and does **not** perform any profiling or analytics.
+Settings, favorites and environment variables use browser sync storage. The browser provider may synchronize these records through the signed-in browser account, according to its settings and policies. The extension does not encrypt these values itself. The developer does not retrieve them.
 
-All features of the Extension are designed to work without requiring any personal or sensitive user data, in line with data minimization expectations for Chrome and Edge extensions.
+Response bodies are displayed in the request page. They are not added to saved history. You can copy or download a response explicitly.
 
-## 3. Local processing and storage
+## Sharing
 
-- All processing performed by the Extension occurs locally within your browser.  
-- Any settings, preferences, or cached data used by the Extension (if any) are stored only in your browser's local storage or synchronized storage associated with your browser account.  
-- We do not have access to this locally stored information and do not retrieve it to our own servers.
+Request exports include the request URL, headers, query parameters, body and GraphQL settings. Base64 encoding is not encryption. Copying an export to the clipboard and sharing it can disclose credentials or other information contained in that request.
 
-## 4. No use of third-party services
+## Permissions and controls
 
-- The Extension does **not** use third-party analytics tools, advertising networks, or tracking pixels.  
-- The Extension does **not** embed third-party SDKs or scripts for the purpose of collecting user data.  
-- The Extension does **not** share any information with third parties, because no information is collected in the first place.
+The extension uses the storage permission and asks for optional access to API hosts. It does not require access to browsing history or all open tabs.
 
-## 5. Permissions
+You can disable or clear request history, edit or delete favorites and environments, revoke host access in the browser, or uninstall the extension. Disabling history prevents new history entries but does not remove the separate last-request draft. Resetting preferences preserves favorites. Browser synchronization and API-server retention are controlled by their respective providers.
 
-The Extension may request certain browser permissions that are technically required for its functionality (for example, access to specific sites, tabs, or storage).  
-Requesting a permission does **not** mean that personal data is collected; permissions are only used to provide the core features of the Extension and not for data harvesting or tracking, in accordance with Chrome Web Store and Microsoft Edge Add-ons policies.
+## Policy updates and contact
 
-## 6. Children's privacy
-
-Because the Extension does not collect, store, or process any personal information, it does not knowingly collect information from children of any age.  
-If this changes in a future version, this Privacy Policy will be updated to reflect the applicable requirements for children's data protection.
-
-## 7. User rights and controls
-
-Since the Extension does not collect or store personal data on our servers, there is no personal data for us to access, modify, export, or delete on your behalf.  
-You may at any time:
-- Disable the Extension from your browser's extensions/add-ons page.
-- Uninstall the Extension, which will remove it and any associated local data stored by the browser.
-
-For Chrome and Edge, you can manage or remove extensions from the respective extensions management pages provided by the browser.
-
-## 8. International data transfers
-
-Because we do not collect or store personal data, there are no international transfers of personal data related to the Extension.  
-If future versions begin to collect data, this section will be updated to describe any applicable transfers and safeguards.
-
-## 9. Changes to this Privacy Policy
-
-We may update this Privacy Policy from time to time, for example to reflect changes in:
-- The functionality or behavior of the Extension.
-- Applicable laws, regulations, or store policies for Chrome or Edge extensions.  
-
-When changes are made, the "Effective date" at the top of this document will be updated. Material changes will be reflected in the latest version of the policy made available via the Chrome Web Store and Microsoft Edge Add-ons listing pages.
-
-## 10. Contact
-
-If you have any questions or concerns about this Privacy Policy or the Extension, you can contact us at:
-
-**Name:** Hayk Jomardyan  
-**Website:** https://github.com/jomardyan/Quick-API-Client
+This file is updated when implemented data handling changes. For questions, contact Hayk Jomardyan through the [project repository](https://github.com/jomardyan/Quick-API-Client).

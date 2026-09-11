@@ -7,6 +7,7 @@
 #   ./release.sh --no-bump  # skip version bump
 
 set -euo pipefail
+cd "$(dirname "$0")"
 
 # ──────────────────────────────────────────────
 # Config
@@ -27,6 +28,9 @@ INCLUDE_FILES=(
   options.css
   background.js
   defaults.js
+  popup/
+  LICENSE
+  PRIVACY_POLICY.md
   icons/
 )
 
@@ -69,29 +73,22 @@ echo "Current version : $CURRENT_VERSION"
 NEW_VERSION=$(bump_semver "$CURRENT_VERSION" "$BUMP_TYPE")
 echo "New version     : $NEW_VERSION"
 
-# ──────────────────────────────────────────────
-# Bump version in manifest.json and package.json
-# ──────────────────────────────────────────────
+# Validate source before changing version metadata.
+npm run lint
+npm test -- --runInBand
+
 if [[ "$BUMP_TYPE" != "--no-bump" ]]; then
-  TMP_MANIFEST=$(mktemp)
-  TMP_PKG=$(mktemp)
-
-  jq --arg v "$NEW_VERSION" '.version = $v' "$MANIFEST" > "$TMP_MANIFEST"
-  mv "$TMP_MANIFEST" "$MANIFEST"
-
-  jq --arg v "$NEW_VERSION" '.version = $v' "$PKG" > "$TMP_PKG"
-  mv "$TMP_PKG" "$PKG"
-
-  echo "Bumped version in $MANIFEST and $PKG"
+  node - "$NEW_VERSION" <<'NODE'
+const fs = require("fs");
+const version = process.argv[2];
+for (const file of ["manifest.json", "package.json", "package-lock.json"]) {
+  const json = JSON.parse(fs.readFileSync(file, "utf8"));
+  json.version = version;
+  if (json.packages && json.packages[""]) json.packages[""].version = version;
+  fs.writeFileSync(file, JSON.stringify(json, null, 2) + "\n");
+}
+NODE
 fi
-
-# ──────────────────────────────────────────────
-# Run tests — abort on failure
-# ──────────────────────────────────────────────
-echo ""
-echo "Running tests..."
-npm test --silent
-echo "All tests passed."
 
 # ──────────────────────────────────────────────
 # Build output directory and zip archive
@@ -99,8 +96,8 @@ echo "All tests passed."
 ZIP_NAME="quick-api-client-v${NEW_VERSION}.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
-rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
+rm -f "$ZIP_PATH"
 
 # Build the zip directly from source — no staging copy needed
 zip -r "$ZIP_PATH" "${INCLUDE_FILES[@]}" \
@@ -119,7 +116,7 @@ if [[ "$BUMP_TYPE" != "--no-bump" ]] && command -v git >/dev/null 2>&1; then
     echo ""
     read -r -p "Create git tag v${NEW_VERSION} and commit version bump? [y/N] " CONFIRM
     if [[ "${CONFIRM,,}" == "y" ]]; then
-      git add "$MANIFEST" "$PKG"
+      git add "$MANIFEST" "$PKG" package-lock.json
       git commit -m "chore: bump version to v${NEW_VERSION}"
       git tag "v${NEW_VERSION}"
       echo "Tagged: v${NEW_VERSION}"
