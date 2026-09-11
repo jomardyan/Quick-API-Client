@@ -32,7 +32,7 @@ function prettifyJsonMaybe(text) {
 }
 
 function shellEscape(str) {
-  return `'${str.replace(/'/g, `'\"'\"'`)}'`;
+  return `'${str.replace(/'/g, `'"'"'`)}'`;
 }
 
 function isBodyless(method) {

@@ -14,6 +14,7 @@
  *
  * Exposes: window.QuickShare  (for testing and cross-module use)
  */
+/* global createKVRow, updatePreview, saveState, setGqlMode, showToast */
 (function () {
   "use strict";
 

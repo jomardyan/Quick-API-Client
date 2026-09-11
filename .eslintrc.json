@@ -1,0 +1,27 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "webextensions": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "script"
+  },
+  "ignorePatterns": ["dist/", "coverage/", "node_modules/"],
+  "rules": {
+    "no-unused-vars": ["warn", { "args": "none", "caughtErrors": "none" }]
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.js"],
+      "env": { "node": true, "jest": true }
+    },
+    {
+      "files": ["generate-screenshots.js"],
+      "env": { "node": true }
+    }
+  ]
+}

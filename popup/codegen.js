@@ -183,7 +183,12 @@
         "OkHttpClient client = new OkHttpClient();",
         "",
       ];
-      let bodyVar = "";
+      // Content-Type is derived from the request body, not sent via addHeader,
+      // since OkHttp reads it from the RequestBody's MediaType.
+      const requestHeaders = headers.filter(
+        ({ key }) => key.toLowerCase() !== "content-type"
+      );
+      let bodyVar = "null";
       if (body.trim()) {
         const ct = getContentType(headers);
         lines.push('MediaType mediaType = MediaType.parse("' + ct + '");');
@@ -197,11 +202,12 @@
       }
       lines.push("Request request = new Request.Builder()");
       lines.push("  .url(" + JSON.stringify(url) + ")");
-      headers.forEach(({ key, value }) =>
+      requestHeaders.forEach(({ key, value }) =>
         lines.push('  .addHeader("' + key + '", "' + value + '")')
       );
-      const m = method.toLowerCase();
-      lines.push(bodyVar ? "  ." + m + "(" + bodyVar + ")" : "  ." + m + "()");
+      // .method() works for every HTTP verb (including HEAD/OPTIONS, which have
+      // no dedicated builder shorthand), unlike .get()/.post()/etc.
+      lines.push('  .method("' + method + '", ' + bodyVar + ")");
       lines.push("  .build();", "");
       lines.push("try (Response response = client.newCall(request).execute()) {");
       lines.push('  System.out.println(response.body().string());');
@@ -210,36 +216,37 @@
     },
 
     csharp({ method, url, headers, body }) {
+      // Content-Type is a content header: HttpRequestMessage.Headers throws if
+      // it's added there, so it's attached to the StringContent instead.
+      const requestHeaders = headers.filter(
+        ({ key }) => key.toLowerCase() !== "content-type"
+      );
       const lines = ["using var client = new HttpClient();", ""];
-      headers.forEach(({ key, value }) =>
+      lines.push(
+        "var request = new HttpRequestMessage(new HttpMethod(" +
+          JSON.stringify(method) +
+          "), " +
+          JSON.stringify(url) +
+          ");"
+      );
+      requestHeaders.forEach(({ key, value }) =>
         lines.push(
-          'client.DefaultRequestHeaders.Add("' + key + '", "' + value + '");'
+          'request.Headers.TryAddWithoutValidation("' + key + '", "' + value + '");'
         )
       );
-      if (headers.length) lines.push("");
-      const m = method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
       if (body.trim()) {
         const ct = getContentType(headers);
         lines.push(
-          "var content = new StringContent(" +
+          "request.Content = new StringContent(" +
             JSON.stringify(body) +
             ', System.Text.Encoding.UTF8, "' +
             ct +
             '");'
         );
-        lines.push(
-          "var response = await client." +
-            m +
-            "Async(" +
-            JSON.stringify(url) +
-            ", content);"
-        );
-      } else {
-        lines.push(
-          "var response = await client." + m + "Async(" + JSON.stringify(url) + ");"
-        );
       }
       lines.push(
+        "",
+        "var response = await client.SendAsync(request);",
         "var result = await response.Content.ReadAsStringAsync();",
         "Console.WriteLine(result);"
       );

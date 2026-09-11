@@ -16,7 +16,7 @@ const restoreLast = document.getElementById("restoreLast");
 const timeoutSeconds = document.getElementById("timeoutSeconds");
 const historySize = document.getElementById("historySize");
 const historyEnabled = document.getElementById("historyEnabled");
-const status = document.getElementById("status");
+const statusEl = document.getElementById("status");
 const saveBtn = document.getElementById("saveBtn");
 const resetBtn = document.getElementById("resetBtn");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -146,12 +146,12 @@ function saveOptions() {
     };
     chrome.storage.sync.set({ options: newOptions }, () => {
       if (chrome.runtime.lastError) {
-        status.textContent = "Save failed: " + chrome.runtime.lastError.message;
+        statusEl.textContent = "Save failed: " + chrome.runtime.lastError.message;
         return;
       }
-      status.textContent = "Saved.";
+      statusEl.textContent = "Saved.";
       applyTheme(newOptions.theme);
-      setTimeout(() => (status.textContent = ""), 1800);
+      setTimeout(() => (statusEl.textContent = ""), 1800);
     });
   });
 }
@@ -159,19 +159,19 @@ function saveOptions() {
 function resetOptions() {
   chrome.storage.sync.set({ options: DEFAULT_OPTIONS }, () => {
     loadOptions();
-    status.textContent = "Reset to defaults.";
-    setTimeout(() => (status.textContent = ""), 1800);
+    statusEl.textContent = "Reset to defaults.";
+    setTimeout(() => (statusEl.textContent = ""), 1800);
   });
 }
 
 function clearHistory() {
   chrome.storage.local.set({ history: [] }, () => {
     if (chrome.runtime.lastError) {
-      status.textContent = "Error: " + chrome.runtime.lastError.message;
+      statusEl.textContent = "Error: " + chrome.runtime.lastError.message;
       return;
     }
-    status.textContent = "History cleared.";
-    setTimeout(() => (status.textContent = ""), 1800);
+    statusEl.textContent = "History cleared.";
+    setTimeout(() => (statusEl.textContent = ""), 1800);
   });
 }
 
@@ -194,7 +194,7 @@ function saveCurrentEnv() {
 function persistEnvironments(callback) {
   chrome.storage.sync.set({ environments }, () => {
     if (chrome.runtime.lastError) {
-      status.textContent = "Env save failed: " + chrome.runtime.lastError.message;
+      statusEl.textContent = "Env save failed: " + chrome.runtime.lastError.message;
       return;
     }
     if (callback) callback();
@@ -258,8 +258,8 @@ deleteEnvBtn.addEventListener("click", () => {
 saveEnvBtn.addEventListener("click", () => {
   saveCurrentEnv();
   renderEnvSelect();
-  status.textContent = "Environment saved.";
-  setTimeout(() => (status.textContent = ""), 1800);
+  statusEl.textContent = "Environment saved.";
+  setTimeout(() => (statusEl.textContent = ""), 1800);
 });
 
 envNameSelect.addEventListener("change", () => {

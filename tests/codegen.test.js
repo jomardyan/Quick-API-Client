@@ -66,6 +66,48 @@ function codegenPhp({ method, url, headers, body }) {
   return lines.join("\n");
 }
 
+function codegenJava({ method, url, headers, body }) {
+  const lines = ["import okhttp3.*;", "", "OkHttpClient client = new OkHttpClient();", ""];
+  const requestHeaders = headers.filter(({ key }) => key.toLowerCase() !== "content-type");
+  let bodyVar = "null";
+  if (body.trim()) {
+    const ct = getContentType(headers);
+    lines.push('MediaType mediaType = MediaType.parse("' + ct + '");');
+    lines.push("RequestBody body = RequestBody.create(" + JSON.stringify(body) + ", mediaType);");
+    lines.push("");
+    bodyVar = "body";
+  }
+  lines.push("Request request = new Request.Builder()");
+  lines.push("  .url(" + JSON.stringify(url) + ")");
+  requestHeaders.forEach(({ key, value }) => lines.push('  .addHeader("' + key + '", "' + value + '")'));
+  lines.push('  .method("' + method + '", ' + bodyVar + ")");
+  lines.push("  .build();", "");
+  lines.push("try (Response response = client.newCall(request).execute()) {");
+  lines.push("  System.out.println(response.body().string());");
+  lines.push("}");
+  return lines.join("\n");
+}
+
+function codegenCsharp({ method, url, headers, body }) {
+  const requestHeaders = headers.filter(({ key }) => key.toLowerCase() !== "content-type");
+  const lines = ["using var client = new HttpClient();", ""];
+  lines.push(
+    "var request = new HttpRequestMessage(new HttpMethod(" + JSON.stringify(method) + "), " + JSON.stringify(url) + ");"
+  );
+  requestHeaders.forEach(({ key, value }) =>
+    lines.push('request.Headers.TryAddWithoutValidation("' + key + '", "' + value + '");')
+  );
+  if (body.trim()) {
+    const ct = getContentType(headers);
+    lines.push(
+      "request.Content = new StringContent(" + JSON.stringify(body) + ', System.Text.Encoding.UTF8, "' + ct + '");'
+    );
+  }
+  lines.push("", "var response = await client.SendAsync(request);");
+  lines.push("var result = await response.Content.ReadAsStringAsync();", "Console.WriteLine(result);");
+  return lines.join("\n");
+}
+
 function codegenNodeAxios({ method, url, headers, body }) {
   const lines = ["const axios = require('axios');", ""];
   const cfg = ["  method: '" + method.toLowerCase() + "',", "  url: " + JSON.stringify(url) + ","];
@@ -220,6 +262,74 @@ describe("codegenPhp", () => {
     });
     expect(output).toContain("CURLOPT_HTTPHEADER");
     expect(output).toContain("Accept: application/json");
+  });
+});
+
+describe("codegenJava", () => {
+  test("uses .method() so HEAD requests compile (OkHttp has no .head(body) shorthand issue)", () => {
+    const output = codegenJava({ method: "HEAD", url: "https://api.example.com", headers: [], body: "" });
+    expect(output).toContain('.method("HEAD", null)');
+    expect(output).not.toMatch(/\.head\(/);
+  });
+
+  test("uses .method() for OPTIONS, which OkHttp's Request.Builder has no shorthand for", () => {
+    const output = codegenJava({ method: "OPTIONS", url: "https://api.example.com", headers: [], body: "" });
+    expect(output).toContain('.method("OPTIONS", null)');
+    expect(output).not.toMatch(/\.options\(/);
+  });
+
+  test("passes the body variable for POST", () => {
+    const output = codegenJava({
+      method: "POST",
+      url: "https://api.example.com",
+      headers: [{ key: "Content-Type", value: "application/json" }],
+      body: '{"a":1}',
+    });
+    expect(output).toContain('.method("POST", body)');
+    expect(output).toContain("RequestBody.create(");
+  });
+
+  test("omits Content-Type from addHeader calls since it's derived from the body's MediaType", () => {
+    const output = codegenJava({
+      method: "POST",
+      url: "https://api.example.com",
+      headers: [{ key: "Content-Type", value: "application/json" }, { key: "Accept", value: "application/json" }],
+      body: '{"a":1}',
+    });
+    expect(output).not.toContain('.addHeader("Content-Type"');
+    expect(output).toContain('.addHeader("Accept"');
+  });
+});
+
+describe("codegenCsharp", () => {
+  test("uses HttpRequestMessage + SendAsync so every verb (including HEAD/OPTIONS) compiles", () => {
+    const head = codegenCsharp({ method: "HEAD", url: "https://api.example.com", headers: [], body: "" });
+    expect(head).toContain('new HttpMethod("HEAD")');
+    const options = codegenCsharp({ method: "OPTIONS", url: "https://api.example.com", headers: [], body: "" });
+    expect(options).toContain('new HttpMethod("OPTIONS")');
+  });
+
+  test("does not add Content-Type via DefaultRequestHeaders/request.Headers, which throws at runtime", () => {
+    const output = codegenCsharp({
+      method: "POST",
+      url: "https://api.example.com",
+      headers: [{ key: "Content-Type", value: "application/json" }],
+      body: '{"a":1}',
+    });
+    expect(output).not.toContain('request.Headers.TryAddWithoutValidation("Content-Type"');
+    expect(output).not.toContain("DefaultRequestHeaders");
+    expect(output).toContain("request.Content = new StringContent(");
+    expect(output).toContain('"application/json"');
+  });
+
+  test("adds non-content headers via TryAddWithoutValidation", () => {
+    const output = codegenCsharp({
+      method: "GET",
+      url: "https://api.example.com",
+      headers: [{ key: "Authorization", value: "Bearer tok" }],
+      body: "",
+    });
+    expect(output).toContain('request.Headers.TryAddWithoutValidation("Authorization", "Bearer tok");');
   });
 });
 
