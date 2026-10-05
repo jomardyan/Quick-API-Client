@@ -1,0 +1,68 @@
+name: Build store release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Also publish the ZIP as a GitHub release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Validate and package Chrome / Edge ZIP
+    uses: ./.github/workflows/validate.yml
+
+  publish:
+    name: Publish verified ZIP
+    needs: build
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download verified extension ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: quick-api-client
+          path: dist
+
+      - name: Create GitHub release with Chrome / Edge package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          release_tag="v${RELEASE_VERSION}-build.${GITHUB_RUN_NUMBER}"
+          release_zip="dist/quick-api-client-v${RELEASE_VERSION}.zip"
+
+          if git show-ref --verify --quiet "refs/tags/$release_tag"; then
+            tag_commit=$(git rev-parse "${release_tag}^{commit}")
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              echo "::error::Build tag $release_tag points to a different commit."
+              exit 1
+            fi
+          fi
+
+          test -f "$release_zip"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "$release_zip" --clobber
+          else
+            gh release create "$release_tag" "$release_zip" \
+              --title "Quick API Client v${RELEASE_VERSION} (build ${GITHUB_RUN_NUMBER})" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --generate-notes
+          fi

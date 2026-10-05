@@ -37,6 +37,14 @@ On Windows, `npm test` and both browser checks work directly from PowerShell. To
 
 The release script validates source before bumping versions. It updates the manifest, package and lockfile together and includes all runtime modules. GitHub Actions runs lint, regression tests, packaging and the Chromium smoke test, then provides the current ZIP as an artifact.
 
+## Build a Chrome / Edge store ZIP with GitHub Actions
+
+Open **Actions → Build store release → Run workflow** and select the branch or tag to package. After it succeeds, download the **quick-api-client** artifact and extract it to get `quick-api-client-v<version>.zip`. Upload that inner ZIP to the Chrome Web Store or Microsoft Edge Add-ons dashboard. It contains the manifest at the ZIP root and the same runtime files as `make pack`.
+
+Every push to **main** automatically builds the ZIP and attaches it to a GitHub prerelease named `v<manifest version>-build.<run number>`. Build numbers let successive pushes use the same manifest version, and rerunning a build refreshes its ZIP. Manual runs also offer **Also publish the ZIP as a GitHub release**. The workflow reuses validation and `release.sh --no-bump`, so it packages the committed version after lint, tests and the packaged Chromium checks pass.
+
+No additional secrets or manually pushed tags are needed. Increase and commit the extension version before submitting an update to the stores; build numbers identify GitHub releases and do not change the manifest version.
+
 ## Operating limits
 
 Request and decoded response bodies are limited to 5 MiB. Larger responses fail explicitly. JSON responses above 200,000 characters display as plain text to keep the interface responsive. Copy and download retain the raw response text. Responses are text-oriented and do not provide lossless binary downloads.

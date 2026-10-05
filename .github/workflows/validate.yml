@@ -3,11 +3,19 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    outputs:
+      version:
+        description: Extension version included in the verified ZIP
+        value: ${{ jobs.validate.outputs.version }}
 permissions:
   contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
