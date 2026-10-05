@@ -151,16 +151,12 @@
     function openModal() {
       // Refresh the export output every time the modal opens
       if (exportOut) exportOut.value = encode(snapshot());
-      modal.classList.add("show");
-      document.body.style.overflow = "hidden";
-      if (exportOut) exportOut.focus();
+      window.QuickUI.openModal(modal, exportOut);
     }
 
     function closeModal() {
-      modal.classList.remove("show");
-      document.body.style.overflow = "";
+      window.QuickUI.closeModal(modal);
       if (importIn) importIn.value = "";
-      shareBtn.focus();
     }
 
     shareBtn.addEventListener("click", openModal);

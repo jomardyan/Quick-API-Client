@@ -10,6 +10,9 @@ A Chrome and Edge extension for testing REST and GraphQL APIs.
 - Cancellation, configurable timeouts and response timing
 - Request sharing and code generation for eight targets
 - JSON, XML, HTML and CSS parsing checks
+- Responsive popup and full-tab workspace with side-by-side request and response panels
+- Keyboard-accessible dialogs, visible validation feedback and direct access to settings
+- Light theme by default with a two-way light/dark toggle
 
 ## Install
 
@@ -30,6 +33,8 @@ npm run test:browser
 
 The browser smoke test extracts the release ZIP and starts a local fixture server. Its temporary manifest pregrants only that fixture host. The distributed manifest continues to request optional permissions. The test exercises real extension messaging and HTTP requests. It requires an environment that permits Chromium processes and local sockets.
 
+On Windows, `npm test` and both browser checks work directly from PowerShell. To check source changes before packaging, run `npm run test:browser:source`. Browser checks open the actual toolbar popup with Chrome's automatic sizing and cover tab widths from 320 to 1560 pixels, short dialogs, favorites, settings validation and request handling. Review screenshots in `test-results/`.
+
 The release script validates source before bumping versions. It updates the manifest, package and lockfile together and includes all runtime modules. GitHub Actions runs lint, regression tests, packaging and the Chromium smoke test, then provides the current ZIP as an artifact.
 
 ## Operating limits
@@ -41,6 +46,8 @@ Timeouts range from 1 to 60 seconds. Chrome can terminate an extension service w
 Browser networking still controls restricted request headers, redirects and TLS validation. Cookies are omitted and the HTTP cache is bypassed. Closing the request page attempts to cancel its active request. Cancellation cannot reverse an action already performed by an API.
 
 Favorites, settings and environments use browser sync storage and remain subject to its quota. History and the last request use local extension storage. Request exports contain the entered headers and body. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md) for details.
+
+Open in tab carries the current draft into the new workspace immediately, even when restoring the last request in the popup is disabled. Compact views reveal the response after sending. Response downloads use an extension matching the content type and preserve the raw text.
 
 ## Author and license
 

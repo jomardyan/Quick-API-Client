@@ -6,7 +6,7 @@
   <title>Quick API Client</title>
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
+<body data-theme="light">
   <main class="shell">
     <header class="top">
       <div>
@@ -19,20 +19,23 @@
         <button id="copyCurlBtn" class="ghost" title="Copy as cURL">Copy cURL</button>
         <button id="codegenBtn" class="ghost" title="Generate code snippet">{ } Snippets</button>
         <button id="shareBtn" class="ghost" title="Export / import request">Share</button>
-        <button id="themeBtn" class="ghost" title="Toggle theme (T)">Theme</button>
-        <button id="helpBtn" class="ghost" title="Keyboard shortcuts (?)">?</button>
-        <a href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab (O)">Open in tab</a>
+        <button id="themeBtn" class="ghost" title="Switch to dark theme (T)">Theme: Light</button>
+        <button id="helpBtn" class="ghost" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+        <a id="openTabLink" href="popup.html?tab=1" target="_blank" rel="noopener" class="ghost link-button" title="Open in a full tab (O)">Open in tab</a>
+        <a href="options.html" target="_blank" rel="noopener" class="ghost link-button" title="Defaults and environments">Settings</a>
       </div>
     </header>
 
-    <section class="panel">
+    <div class="workspace">
+    <section class="panel request" aria-label="Request editor">
+      <div class="library">
       <div class="row">
         <div class="label-inline">
           <label for="favoriteSelect">Favorites</label>
           <div class="pill-actions">
-            <button id="loadFavoriteBtn" class="ghost small" title="Load selected favorite">Load</button>
+            <button id="loadFavoriteBtn" class="ghost small" title="Load selected favorite" disabled>Load</button>
             <button id="saveFavoriteBtn" class="ghost small" title="Save current request">Save</button>
-            <button id="deleteFavoriteBtn" class="ghost small" title="Delete selected">Delete</button>
+            <button id="deleteFavoriteBtn" class="ghost small" title="Delete selected" disabled>Delete</button>
           </div>
         </div>
         <select id="favoriteSelect">
@@ -44,7 +47,7 @@
         <div class="label-inline">
           <label for="presetSelect">API Presets</label>
           <div class="pill-actions">
-            <button id="applyPresetBtn" class="ghost small">Apply</button>
+            <button id="applyPresetBtn" class="ghost small" disabled>Apply</button>
           </div>
         </div>
         <select id="presetSelect">
@@ -59,11 +62,15 @@
       <div class="row">
         <div class="label-inline">
           <label for="envSelect">Environment</label>
-          <span id="envVarCount" class="hint"></span>
+          <div class="pill-actions">
+            <span id="envVarCount" class="hint"></span>
+            <a href="options.html#environments" target="_blank" rel="noopener" class="text-link">Manage</a>
+          </div>
         </div>
         <select id="envSelect">
           <option value="">No environment</option>
         </select>
+      </div>
       </div>
 
       <div class="request-bar">
@@ -81,21 +88,22 @@
       </div>
       <div class="row">
         <label for="url">URL</label>
-        <input id="url" type="text" placeholder="https://api.example.com/resource">
+        <input id="url" type="text" placeholder="https://api.example.com/resource" autocomplete="off" spellcheck="false" aria-describedby="requestError">
       </div>
       </div>
+      <p id="requestError" class="request-error" role="status" hidden></p>
       <div class="row dual">
         <div>
-          <label>Query params</label>
-          <div id="queryParams" class="kv-list"></div>
+          <div class="label-inline"><label id="queryParamsLabel">Query params</label></div>
+          <div id="queryParams" class="kv-list" role="group" aria-labelledby="queryParamsLabel"></div>
           <button id="addQueryBtn" class="ghost small">Add param</button>
         </div>
         <div>
           <div class="label-inline">
-            <label>Headers</label>
+            <label id="headersLabel">Headers</label>
             <button id="authTemplateBtn" class="ghost small" title="Add auth header">+ Auth</button>
           </div>
-          <div id="headers" class="kv-list"></div>
+          <div id="headers" class="kv-list" role="group" aria-labelledby="headersLabel"></div>
           <button id="addHeaderBtn" class="ghost small">Add header</button>
         </div>
       </div>
@@ -104,10 +112,10 @@
           <label for="body">Body</label>
           <div class="pill-actions">
             <span id="bodyHint" class="hint">Ignored for GET/HEAD</span>
-            <button id="gqlToggleBtn" class="ghost small" title="Toggle GraphQL mode">GraphQL</button>
+            <button id="gqlToggleBtn" class="ghost small" title="Toggle GraphQL mode" aria-pressed="false">GraphQL</button>
           </div>
         </div>
-        <textarea id="body" rows="5" placeholder='{"name":"Ada"}'></textarea>
+        <textarea id="body" rows="5" placeholder='{"name":"Ada"}' spellcheck="false"></textarea>
       </div>
       <div id="gqlVarsRow" class="row" style="display:none">
         <div class="label-inline">
@@ -133,18 +141,19 @@
       </div>
     </section>
 
-    <section class="panel response">
+    <section class="panel response" aria-label="Response" aria-busy="false">
       <div class="label-inline">
         <label>Response</label>
-        <span id="statusBadge" class="badge muted">Waiting</span>
+        <span id="statusBadge" class="badge muted" role="status" aria-live="polite">Ready</span>
       </div>
+      <p id="responseEmpty" class="empty-state">Send a request to see its status, headers, and response body here.</p>
       <p id="responseMeta" class="meta"></p>
       <div id="timingPanel" class="timing-panel" style="display:none"></div>
       <div class="stack">
         <div>
           <div class="label-inline">
             <p class="hint">Headers</p>
-            <button id="copyHeadersBtn" class="ghost small">Copy</button>
+            <button id="copyHeadersBtn" class="ghost small" disabled>Copy</button>
           </div>
           <pre id="responseHeaders" class="code small"></pre>
         </div>
@@ -152,15 +161,16 @@
           <div class="label-inline">
             <p class="hint">Body</p>
             <div class="pill-actions">
-              <button id="validateBtn" class="ghost small" title="Validate response body">Validate</button>
-              <button id="copyBodyBtn" class="ghost small">Copy</button>
-              <button id="saveBodyBtn" class="ghost small">Download</button>
+              <button id="validateBtn" class="ghost small" title="Validate response body" disabled>Validate</button>
+              <button id="copyBodyBtn" class="ghost small" disabled>Copy</button>
+              <button id="saveBodyBtn" class="ghost small" disabled>Download</button>
             </div>
           </div>
           <pre id="responseBody" class="code"></pre>
         </div>
       </div>
     </section>
+    </div>
 
     <div class="footer-actions">
       <button id="cancelBtn" class="ghost cancel-btn" title="Cancel in-flight request" style="display:none">Cancel</button>
@@ -325,7 +335,7 @@
             <option value="css">CSS</option>
           </select>
         </div>
-        <div id="validateResult" class="validate-result"></div>
+        <div id="validateResult" class="validate-result" role="status" aria-live="polite"></div>
       </div>
       <div class="modal-footer">
         <button id="runValidateBtn" class="primary">Re-validate</button>
@@ -375,6 +385,7 @@
   </div>
 
   <script src="defaults.js"></script>
+  <script src="popup/ui.js"></script>
   <script src="popup/request.js"></script>
   <script src="popup.js"></script>
   <script src="popup/codegen.js"></script>

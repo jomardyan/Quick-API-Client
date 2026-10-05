@@ -1,6 +1,6 @@
 (() => {
   const defaults = {
-    theme: "system",
+    theme: "light",
     defaultUrl: "https://jsonplaceholder.typicode.com/posts/1",
     defaultHeaders: [{ key: "Accept", value: "application/json" }],
     defaultQuery: [],

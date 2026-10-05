@@ -6,7 +6,7 @@
   <title>Quick API Client Options</title>
   <link rel="stylesheet" href="options.css">
 </head>
-<body data-theme="system">
+<body data-theme="light">
   <main class="shell">
     <header class="top">
       <div>
@@ -25,9 +25,8 @@
       <div class="row">
         <label for="themeSelect">Theme</label>
         <select id="themeSelect">
-          <option value="system">System (auto)</option>
-          <option value="dark">Dark</option>
           <option value="light">Light</option>
+          <option value="dark">Dark</option>
         </select>
         <p class="hint">Applies to popup and options pages.</p>
       </div>
@@ -82,7 +81,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="environments">
       <div class="row">
         <div class="label-inline">
           <label>Environments</label>
@@ -115,7 +114,7 @@
       </div>
     </section>
 
-    <p id="status" class="status hint"></p>
+    <p id="status" class="status hint" role="status" aria-live="polite"></p>
     </div>
   </main>
   <!-- Confirmation Modal -->
@@ -132,6 +131,7 @@
   </div>
 
   <script src="defaults.js"></script>
+  <script src="popup/ui.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

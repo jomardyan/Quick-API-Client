@@ -41,14 +41,11 @@ let _confirmCallback = null;
 function showConfirm(message, onOk) {
   confirmModalMessage.textContent = message;
   _confirmCallback = onOk;
-  confirmModal.classList.add("show");
-  document.body.style.overflow = "hidden";
-  setTimeout(() => confirmModalOkBtn.focus(), 100);
+  window.QuickUI.openModal(confirmModal, confirmModalCancelBtn);
 }
 
 function closeConfirmModal() {
-  confirmModal.classList.remove("show");
-  document.body.style.overflow = "";
+  window.QuickUI.closeModal(confirmModal);
   _confirmCallback = null;
 }
 
@@ -69,34 +66,26 @@ let environments = [];
 let selectedEnvIdx = -1;
 
 function applyTheme(theme) {
-  const resolved =
-    theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : theme;
-  document.body.dataset.theme = resolved;
+  document.body.dataset.theme = theme === "dark" ? "dark" : "light";
 }
 
 function parseKVText(text) {
   const trimmed = text.trim();
   if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => ({
-          key: item?.key?.trim?.() || "",
-          value: String(item?.value ?? ""),
-        }))
-        .filter((kv) => kv.key);
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    let parsed;
+    try { parsed = JSON.parse(trimmed); }
+    catch (_) { throw new Error("Enter a valid JSON array or one key: value pair per line."); }
+    if (!Array.isArray(parsed) || parsed.some(item => !item || typeof item.key !== "string" || typeof item.value === "object" && item.value !== null)) {
+      throw new Error("Use a JSON array of objects with a key and a value.");
     }
-  } catch (err) {
-    // Fallback to newline parsing.
+    return parsed.map(item => ({ key: item.key.trim(), value: String(item.value ?? "") })).filter(item => item.key);
   }
   return trimmed
     .split("\n")
     .map((line) => {
+      if (!line.trim()) return null;
+      if (!line.includes(":")) throw new Error("Each line must contain a key: value pair.");
       const [key, ...rest] = line.split(":");
       if (!key) return null;
       return { key: key.trim(), value: rest.join(":").trim() };
@@ -112,6 +101,7 @@ function kvToDisplay(kvList) {
 function loadOptions() {
   chrome.storage.sync.get("options", ({ options }) => {
     const merged = { ...DEFAULT_OPTIONS, ...(options || {}) };
+    merged.theme = merged.theme === "dark" ? "dark" : "light";
     const historySizeValue = clampHistorySize(merged.historySize);
     themeSelect.value = merged.theme;
     defaultUrl.value = merged.defaultUrl;
@@ -129,15 +119,21 @@ function loadOptions() {
 function saveOptions() {
   const timeoutMs = window.clampTimeoutMs(Number(timeoutSeconds.value) * 1000);
   const size = clampHistorySize(historySize.value);
+  let headers, query;
+  try {
+    headers = parseKVText(defaultHeaders.value);
+    query = parseKVText(defaultQuery.value);
+  } catch (error) { statusEl.textContent = error.message; return; }
   chrome.storage.sync.get("options", ({ options }) => {
+    if (chrome.runtime.lastError) { statusEl.textContent = "Save failed: " + chrome.runtime.lastError.message; return; }
     const existing = options || {};
     const newOptions = {
       ...DEFAULT_OPTIONS,
       ...existing,
       theme: themeSelect.value,
       defaultUrl: defaultUrl.value.trim(),
-      defaultHeaders: parseKVText(defaultHeaders.value),
-      defaultQuery: parseKVText(defaultQuery.value),
+      defaultHeaders: headers,
+      defaultQuery: query,
       defaultBody: defaultBody.value,
       restoreLast: restoreLast.checked,
       timeoutMs,
@@ -150,6 +146,8 @@ function saveOptions() {
         return;
       }
       statusEl.textContent = "Saved.";
+      timeoutSeconds.value = timeoutMs / 1000;
+      historySize.value = size;
       applyTheme(newOptions.theme);
       setTimeout(() => (statusEl.textContent = ""), 1800);
     });
@@ -204,8 +202,11 @@ function saveCurrentEnv(callback) {
     return;
   }
   const previousName = environments[selectedEnvIdx].name;
+  let vars;
+  try { vars = parseKVText(envVarsInput.value); }
+  catch (error) { statusEl.textContent = error.message; return; }
   environments[selectedEnvIdx].name = name;
-  environments[selectedEnvIdx].vars = parseKVText(envVarsInput.value);
+  environments[selectedEnvIdx].vars = vars;
   persistEnvironments(callback, previousName, name);
 }
 
@@ -233,6 +234,7 @@ function persistEnvironments(callback, previousName, nextName) {
 
 function renderEnvSelect() {
   envNameSelect.innerHTML = "";
+  deleteEnvBtn.disabled = !environments.length;
   if (!environments.length) {
     const opt = document.createElement("option");
     opt.value = "";
@@ -308,7 +310,3 @@ saveBtn.addEventListener("click", saveOptions);
 resetBtn.addEventListener("click", resetOptions);
 clearHistoryBtn.addEventListener("click", clearHistory);
 themeSelect.addEventListener("change", () => applyTheme(themeSelect.value));
-
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  applyTheme(themeSelect.value);
-});

@@ -288,15 +288,11 @@
     function openModal() {
       populateLangs();
       refresh();
-      modal.classList.add("show");
-      document.body.style.overflow = "hidden";
-      langSelect.focus();
+      window.QuickUI.openModal(modal, langSelect);
     }
 
     function closeModal() {
-      modal.classList.remove("show");
-      document.body.style.overflow = "";
-      btn.focus();
+      window.QuickUI.closeModal(modal);
     }
 
     btn.addEventListener("click", openModal);

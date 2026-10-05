@@ -90,7 +90,7 @@ async function run() {
           get: (keys, cb) => {
             const defaults = {
               options: {
-                theme: "system",
+                theme: "light",
                 defaultUrl: "https://jsonplaceholder.typicode.com/posts/1",
                 timeoutSeconds: 15,
                 historySize: 8,

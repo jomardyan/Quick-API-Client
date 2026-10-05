@@ -212,15 +212,11 @@
       const detected = detectContentType();
       typeSelect.value = detected;
       runValidation();
-      modal.classList.add("show");
-      document.body.style.overflow = "hidden";
-      runBtn.focus();
+      window.QuickUI.openModal(modal, runBtn);
     }
 
     function closeModal() {
-      modal.classList.remove("show");
-      document.body.style.overflow = "";
-      validateBtn.focus();
+      window.QuickUI.closeModal(modal);
     }
 
     validateBtn.addEventListener("click", openModal);

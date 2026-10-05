@@ -18,11 +18,11 @@
   // ── Performance tiers ──────────────────────────────────────────────────────
 
   const TIERS = [
-    { max: 200,   label: "Excellent", color: "#4ade80" },
-    { max: 500,   label: "Good",      color: "#a3e635" },
-    { max: 1000,  label: "Fair",      color: "#facc15" },
-    { max: 3000,  label: "Slow",      color: "#fb923c" },
-    { max: Infinity, label: "Very slow", color: "#f87171" },
+    { max: 200,   label: "Excellent", color: "#4ade80", light: "#1a7f37" },
+    { max: 500,   label: "Good",      color: "#a3e635", light: "#3f6600" },
+    { max: 1000,  label: "Fair",      color: "#facc15", light: "#7d4e00" },
+    { max: 3000,  label: "Slow",      color: "#fb923c", light: "#a13b00" },
+    { max: Infinity, label: "Very slow", color: "#f87171", light: "#cf222e" },
   ];
 
   function getTier(ms) {
@@ -57,6 +57,8 @@
 
     // Build DOM nodes (no innerHTML with user data only controlled values used)
     panel.innerHTML = "";
+    panel.style.setProperty("--timing-dark", tier.color);
+    panel.style.setProperty("--timing-light", tier.light);
 
     // Row: time + bar
     const timeRow = document.createElement("div");
@@ -69,12 +71,12 @@
     const timeValue = document.createElement("span");
     timeValue.className = "timing-value";
     timeValue.textContent = elapsed + " ms";
-    timeValue.style.color = tier.color;
+    timeValue.style.color = "var(--timing-color)";
 
     const timeTier = document.createElement("span");
     timeTier.className = "timing-rating";
     timeTier.textContent = tier.label;
-    timeTier.style.color = tier.color;
+    timeTier.style.color = "var(--timing-color)";
 
     timeRow.append(timeLabel, timeValue, timeTier);
 
@@ -84,7 +86,7 @@
     const barFill = document.createElement("div");
     barFill.className = "timing-bar-fill";
     barFill.style.width = barPct + "%";
-    barFill.style.background = tier.color;
+    barFill.style.background = "var(--timing-color)";
     barTrack.appendChild(barFill);
 
     // Row: size + throughput

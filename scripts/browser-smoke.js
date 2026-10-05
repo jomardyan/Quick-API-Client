@@ -13,7 +13,19 @@ const { execFileSync } = require('child_process');
   fs.mkdirSync(extension);
   const manifest = require('../manifest.json');
   const archive = path.resolve(__dirname, `../dist/quick-api-client-v${manifest.version}.zip`);
-  execFileSync('unzip', ['-q', archive, '-d', extension]);
+  if (process.argv.includes('--source')) {
+    const root = path.resolve(__dirname, '..');
+    const release = fs.readFileSync(path.join(root, 'release.sh'), 'utf8');
+    const files = release.match(/INCLUDE_FILES=\(([\s\S]*?)\)/)[1].trim().split(/\s+/);
+    for (const file of files) fs.cpSync(path.join(root, file), path.join(extension, file), { recursive: true });
+  } else if (process.platform === 'win32') {
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      'Expand-Archive -LiteralPath $env:QUICK_API_ARCHIVE -DestinationPath $env:QUICK_API_EXTENSION -Force'], {
+      windowsHide: true, env: { ...process.env, QUICK_API_ARCHIVE: archive, QUICK_API_EXTENSION: extension },
+    });
+  } else {
+    execFileSync('unzip', ['-q', archive, '-d', extension]);
+  }
   // Pregrant only the local fixture host so browser permission UI does not block automation.
   const testManifest = JSON.parse(fs.readFileSync(path.join(extension, 'manifest.json')));
   testManifest.host_permissions = ['http://127.0.0.1/*'];
@@ -44,7 +56,7 @@ const { execFileSync } = require('child_process');
     context = await chromium.launchPersistentContext(path.join(temp, 'profile'), {
       executablePath: chromium.executablePath(), headless: true,
       ignoreDefaultArgs: ["--disable-extensions"],
-      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-sandbox'],
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-sandbox', '--window-size=1560,1000'],
     });
     const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
     const id = new URL(worker.url()).host;
@@ -53,6 +65,9 @@ const { execFileSync } = require('child_process');
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`chrome-extension://${id}/popup.html?tab=1`);
     await page.waitForFunction(() => document.getElementById('url').value !== '');
+    // Existing installations may still have the removed automatic preference.
+    await worker.evaluate(() => chrome.storage.sync.set({ options: { theme: 'system' } }));
+    await require('./browser-toolbar')(context, worker, id);
     await page.locator('#url').fill(base + '/echo');
     await page.locator('#method').selectOption('POST');
     await page.locator('#body').fill('  { "n": 9007199254740993 }  ');
@@ -91,12 +106,18 @@ const { execFileSync } = require('child_process');
     const css = await page.evaluate(() => window.QuickValidators.validateCSS('body { color: red; }'));
     assert.equal(css.valid, true);
     assert.equal(await page.locator('style[data-codegen-temp]').count(), 0);
+    await require('./browser-ui')(page, context, id, base);
     assert.deepEqual(errors, []);
-    console.log('Chromium package smoke passed - real worker requests, raw body, GraphQL, cURL, sharing, cancel/resend, HTTP 422/204, timing, CSS and no page errors');
+    console.log('Chromium smoke passed - real worker requests, raw body, GraphQL, cURL, sharing, cancel/resend, HTTP 422/204, timing, responsive layouts, dialogs, favorites, settings and no page errors');
   } finally {
     if (context) await context.close();
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
-    fs.rmSync(temp, { recursive: true, force: true });
+    if (path.dirname(path.resolve(temp)) === path.resolve(os.tmpdir()) && path.basename(temp).startsWith('quick-api-smoke-')) {
+      fs.rmSync(temp, { recursive: true, force: true });
+    } else {
+      console.error('Refusing to remove an unexpected smoke-test directory');
+      process.exitCode = 1;
+    }
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });

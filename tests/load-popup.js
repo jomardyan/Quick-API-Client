@@ -10,7 +10,7 @@ module.exports = function loadPopup() {
   chrome.storage.local.set.mockImplementation((data, cb) => { if (cb) cb(); });
   chrome.storage.sync.set.mockImplementation((data, cb) => { if (cb) cb(); });
   chrome.permissions.request.mockImplementation((origins, cb) => cb(true));
-  for (const file of ['defaults.js', 'popup/request.js', 'popup.js']) {
+  for (const file of ['defaults.js', 'popup/ui.js', 'popup/request.js', 'popup.js']) {
     window.eval(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'));
   }
   return window;

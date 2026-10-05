@@ -84,6 +84,13 @@ const envVarCount = document.getElementById("envVarCount");
 const gqlToggleBtn = document.getElementById("gqlToggleBtn");
 const gqlVarsRow = document.getElementById("gqlVarsRow");
 const gqlVariables = document.getElementById("gqlVariables");
+const requestError = document.getElementById("requestError");
+const responsePanel = document.querySelector(".response");
+const responseEmpty = document.getElementById("responseEmpty");
+const validateBtn = document.getElementById("validateBtn");
+
+document.body.dataset.view = new URLSearchParams(window.location.search).get("tab") === "1" ? "tab" : "popup";
+document.documentElement.dataset.view = document.body.dataset.view;
 
 const isBodyless = (method) => ["GET", "HEAD"].includes(method);
 let maxHistory = 8;
@@ -115,6 +122,7 @@ function disableGqlMode() {
   methodEl.disabled = false;
   gqlToggleBtn.classList.remove("primary");
   gqlToggleBtn.classList.add("ghost");
+  gqlToggleBtn.setAttribute("aria-pressed", "false");
   gqlVarsRow.style.display = "none";
   gqlVariables.value = "";
 }
@@ -125,6 +133,7 @@ function setGqlMode(enabled) {
   if (!enabled) gqlVariables.value = "";
   gqlToggleBtn.classList.toggle("primary", enabled);
   gqlToggleBtn.classList.toggle("ghost", !enabled);
+  gqlToggleBtn.setAttribute("aria-pressed", String(enabled));
   gqlVarsRow.style.display = enabled ? "" : "none";
   if (enabled) {
     // Force POST and set Content-Type when activating GraphQL
@@ -157,7 +166,7 @@ function renderEnvSelect() {
   });
   // Restore prior selection or active env from options
   const desired = currentOptions.activeEnvironment || "";
-  envSelect.value = desired;
+  envSelect.value = currentEnvironments.some(env => env.name === desired) ? desired : "";
   updateEnvVarCount();
 }
 
@@ -216,17 +225,25 @@ function createKVRow(container, key = "", value = "") {
   keyInput.className = "kv-key";
   keyInput.placeholder = "Key";
   keyInput.value = key;
+  const kind = container === headersListEl ? "Header" : "Query parameter";
+  keyInput.setAttribute("aria-label", `${kind} name`);
+  keyInput.spellcheck = false;
+  keyInput.autocomplete = "off";
 
   const valInput = document.createElement("input");
   valInput.type = "text";
   valInput.className = "kv-value";
   valInput.placeholder = "Value";
   valInput.value = value;
+  valInput.setAttribute("aria-label", `${kind} value`);
+  valInput.spellcheck = false;
+  valInput.autocomplete = "off";
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "ghost small remove";
   removeBtn.title = "Remove";
   removeBtn.textContent = "✕";
+  removeBtn.setAttribute("aria-label", `Remove ${kind.toLowerCase()}`);
 
   [keyInput, valInput].forEach((input) =>
     ["input", "change"].forEach((evt) =>
@@ -238,13 +255,16 @@ function createKVRow(container, key = "", value = "") {
   );
 
   removeBtn.addEventListener("click", () => {
+    const next = row.nextElementSibling || row.previousElementSibling;
     row.remove();
+    (next?.querySelector("input") || (container === headersListEl ? addHeaderBtn : addQueryBtn)).focus();
     updatePreview();
     saveState();
   });
 
   row.append(keyInput, valInput, removeBtn);
   container.appendChild(row);
+  return row;
 }
 
 function readKV(container) {
@@ -318,18 +338,11 @@ function saveState() {
 }
 
 function applyTheme(themeChoice) {
-  const resolved =
-    themeChoice === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : themeChoice;
+  const resolved = themeChoice === "dark" ? "dark" : "light";
+  currentOptions.theme = resolved;
   document.body.dataset.theme = resolved;
-  const label =
-    themeChoice === "system"
-      ? `Theme: Auto (${resolved})`
-      : `Theme: ${themeChoice.charAt(0).toUpperCase()}${themeChoice.slice(1)}`;
-  themeBtn.textContent = label;
+  themeBtn.textContent = `Theme: ${resolved === "dark" ? "Dark" : "Light"}`;
+  themeBtn.title = `Switch to ${resolved === "dark" ? "light" : "dark"} theme (T)`;
 }
 
 function loadOptions() {
@@ -353,7 +366,7 @@ function loadOptions() {
 
 function restoreState() {
   chrome.storage.local.get("lastRequest", ({ lastRequest }) => {
-    const useLast = currentOptions.restoreLast && lastRequest;
+    const useLast = (currentOptions.restoreLast || document.body.dataset.view === "tab") && lastRequest;
     const base = useLast
       ? lastRequest
       : {
@@ -393,8 +406,12 @@ function updatePreview() {
       request.headers.map(({ key, value }) => `${key}: ${value}`).join("\n"),
       request.body,
     ].filter(Boolean).join("\n\n");
+    requestError.hidden = true;
+    requestError.textContent = "";
   } catch (err) {
     requestPreviewEl.textContent = err.message;
+    requestError.hidden = false;
+    requestError.textContent = err.message;
   }
   document.getElementById("bodyHint").textContent = gqlMode
     ? "GraphQL query string" : isBodyless(methodEl.value) ? "Ignored for GET/HEAD" : "Sends the body exactly as entered";
@@ -425,9 +442,11 @@ function ensureOriginPermission(origin) {
 }
 
 function renderFavorites() {
+  const selected = favoriteSelect.value;
   favoriteSelect.innerHTML = "";
   if (!favorites || favorites.length === 0) {
     favoriteSelect.innerHTML = '<option value="">No favorites saved yet</option>';
+    updateFavoriteActions();
     return;
   }
   favoriteSelect.innerHTML = '<option value="">Select a favorite…</option>';
@@ -437,6 +456,14 @@ function renderFavorites() {
     option.textContent = fav.name;
     favoriteSelect.appendChild(option);
   });
+  favoriteSelect.value = favorites[selected] ? selected : "";
+  updateFavoriteActions();
+}
+
+function updateFavoriteActions() {
+  const selected = favoriteSelect.value !== "" && Boolean(favorites[Number(favoriteSelect.value)]);
+  loadFavoriteBtn.disabled = deleteFavoriteBtn.disabled = !selected || favoriteMutationPending;
+  confirmSaveFavoriteBtn.disabled = favoriteMutationPending;
 }
 
 function saveFavorite(name) {
@@ -453,9 +480,11 @@ function saveFavorite(name) {
 
   const favorite = { name, method, url, query, headers, body, gqlMode, gqlVariables: gqlVariables.value };
   favoriteMutationPending = true;
+  updateFavoriteActions();
   chrome.storage.sync.get("options", ({ options }) => {
     if (chrome.runtime.lastError) {
       favoriteMutationPending = false;
+      updateFavoriteActions();
       showToast("Save failed - " + chrome.runtime.lastError.message);
       return;
     }
@@ -464,12 +493,16 @@ function saveFavorite(name) {
     chrome.storage.sync.set({ options: newOptions }, () => {
       if (chrome.runtime.lastError) {
         favoriteMutationPending = false;
+        updateFavoriteActions();
         showToast("Save failed - " + chrome.runtime.lastError.message);
         return;
       }
       favoriteMutationPending = false;
       favorites = nextFavorites;
       renderFavorites();
+      favoriteSelect.value = String(favorites.length - 1);
+      updateFavoriteActions();
+      closeSaveFavoriteModalFn();
       showToast(hasCredential ? "Saved ⚠ contains credentials" : "Favorite saved");
     });
   });
@@ -512,10 +545,12 @@ function deleteFavorite() {
   showConfirm(`Delete "${favorites[Number(idx)].name}"?`, () => {
     if (favoriteMutationPending) return;
     favoriteMutationPending = true;
+    updateFavoriteActions();
     const nextFavorites = favorites.filter((_, index) => index !== Number(idx));
     chrome.storage.sync.get("options", ({ options }) => {
       if (chrome.runtime.lastError) {
         favoriteMutationPending = false;
+        updateFavoriteActions();
         showToast("Delete failed - " + chrome.runtime.lastError.message);
         return;
       }
@@ -523,6 +558,7 @@ function deleteFavorite() {
       chrome.storage.sync.set({ options: newOptions }, () => {
         if (chrome.runtime.lastError) {
           favoriteMutationPending = false;
+          updateFavoriteActions();
           showToast("Delete failed: " + chrome.runtime.lastError.message);
           return;
         }
@@ -536,55 +572,42 @@ function deleteFavorite() {
 }
 
 function openAuthModal() {
-  authModal.classList.add("show");
-  authType.focus();
-  // Trap focus in modal
-  document.body.style.overflow = "hidden";
+  window.QuickUI.openModal(authModal, authType);
 }
 
 function closeAuthModalFn() {
-  authModal.classList.remove("show");
-  document.body.style.overflow = "";
+  window.QuickUI.closeModal(authModal);
   // Clear inputs
   bearerToken.value = "";
   basicUsername.value = "";
   basicPassword.value = "";
   apiKeyName.value = "";
   apiKeyValue.value = "";
-  authTemplateBtn.focus();
 }
 
-const MODAL_TRANSITION_DELAY = 100; // Allow time for modal show animation before focusing
-
 function openSaveFavoriteModal() {
-  saveFavoriteModal.classList.add("show");
-  document.body.style.overflow = "hidden";
-  // Use setTimeout to ensure modal is visible before focusing
-  setTimeout(() => favoriteName.focus(), MODAL_TRANSITION_DELAY);
+  window.QuickUI.openModal(saveFavoriteModal, favoriteName);
 }
 
 function closeSaveFavoriteModalFn() {
-  saveFavoriteModal.classList.remove("show");
-  document.body.style.overflow = "";
+  window.QuickUI.closeModal(saveFavoriteModal);
   favoriteName.value = "";
-  saveFavoriteBtn.focus();
 }
 
 function openHelpModal() {
-  helpModal.classList.add("show");
-  document.body.style.overflow = "hidden";
-  closeHelpModalBtn.focus();
+  window.QuickUI.openModal(helpModal, closeHelpModalBtn);
 }
 
 function closeHelpModalFn() {
-  helpModal.classList.remove("show");
-  document.body.style.overflow = "";
-  helpBtn.focus();
+  window.QuickUI.closeModal(helpModal);
 }
 
 function upsertAuth(container, key, value) {
   const rows = Array.from(container.querySelectorAll(".kv-row"));
-  rows.filter(row => row.querySelector(".kv-key").value.trim().toLowerCase() === key.toLowerCase()).forEach(row => row.remove());
+  rows.filter(row => {
+    const existing = row.querySelector(".kv-key").value.trim();
+    return container === queryListEl ? existing === key : existing.toLowerCase() === key.toLowerCase();
+  }).forEach(row => row.remove());
   createKVRow(container, key, value);
 }
 
@@ -648,6 +671,7 @@ function applyAuthTemplate() {
 
 function renderHistory() {
   historyListEl.innerHTML = "";
+  clearHistoryBtn.disabled = !historyItems.length;
   if (currentOptions.historyEnabled === false || maxHistory === 0) {
     const hint = document.createElement("p");
     hint.className = "hint";
@@ -690,8 +714,8 @@ function renderHistory() {
       );
       bodyEl.value = item.body || "";
       if (item.gqlMode) {
-        setGqlMode(true);
         gqlVariables.value = item.gqlVariables || "";
+        setGqlMode(true);
       } else {
         setGqlMode(false);
       }
@@ -723,6 +747,27 @@ function clearSendingState() {
   sendBtn.classList.remove("loading");
   sendBtnBottom.classList.remove("loading");
   cancelBtn.style.display = "none";
+  responsePanel.setAttribute("aria-busy", "false");
+}
+
+function resetResponse(message = "Send a request to see its status, headers, and response body here.") {
+  responseMeta.textContent = "";
+  responseHeaders.textContent = "";
+  responseBody.textContent = "";
+  delete responseBody.dataset.raw;
+  delete responseBody.dataset.bytes;
+  delete responseBody.dataset.lang;
+  delete responseBody.dataset.contentType;
+  responsePanel.dataset.received = "false";
+  responseEmpty.textContent = message;
+  responseEmpty.hidden = false;
+  copyHeadersBtn.disabled = copyBodyBtn.disabled = saveBodyBtn.disabled = validateBtn.disabled = true;
+}
+
+function revealResponse() {
+  if (window.matchMedia("(max-width: 899px)").matches) {
+    responsePanel.scrollIntoView?.({ block: "start" });
+  }
 }
 
 function abortBackgroundRequest(requestId) {
@@ -739,6 +784,7 @@ function cancelCurrentRequest() {
   statusBadge.textContent = "Cancelled";
   statusBadge.className = "badge warn";
   responseMeta.textContent = "Request cancelled by user.";
+  responseEmpty.hidden = true;
   showToast("Request cancelled");
 }
 
@@ -749,7 +795,12 @@ async function sendRequest() {
   isRequestInFlight = true;
   sendBtn.disabled = sendBtnBottom.disabled = true;
   cancelBtn.style.display = "";
+  resetResponse("Preparing your request…");
+  statusBadge.textContent = "Preparing…";
+  statusBadge.className = "badge muted";
+  responsePanel.setAttribute("aria-busy", "true");
   try {
+    updatePreview();
     const snapshot = snapshotRequest();
     const { method, url: finalUrl, headers, body } = prepareRequest();
     const headersObj = Object.fromEntries(headers.map(({ key, value }) => [key, value]));
@@ -760,6 +811,8 @@ async function sendRequest() {
       statusBadge.textContent = "Permission denied";
       statusBadge.className = "badge err";
       responseMeta.textContent = "Allow host permission to send this request.";
+      responseEmpty.hidden = true;
+      revealResponse();
       return;
     }
 
@@ -774,11 +827,7 @@ async function sendRequest() {
 
     statusBadge.textContent = "Sending...";
     statusBadge.className = "badge muted";
-    responseMeta.textContent = "";
-    responseHeaders.textContent = "";
-    responseBody.textContent = "";
-    delete responseBody.dataset.raw;
-    delete responseBody.dataset.bytes;
+    responseEmpty.textContent = "Waiting for the server…";
 
     // Guard: if the service worker is killed mid-request, the callback never fires.
     // After timeout + 5 s we recover the UI instead of hanging forever.
@@ -790,6 +839,8 @@ async function sendRequest() {
       statusBadge.textContent = "SW Error";
       statusBadge.className = "badge err";
       responseMeta.textContent = "Background was restarted mid-request. Please try again.";
+      responseEmpty.hidden = true;
+      revealResponse();
       showToast("Try again — extension restarted");
     }, effectiveTimeout + 5000);
 
@@ -809,6 +860,8 @@ async function sendRequest() {
         const runtimeError = chrome.runtime.lastError;
         if (activeRequestId !== requestId) return;
         clearSendingState();
+        responseEmpty.hidden = true;
+        revealResponse();
         if (runtimeError) {
           statusBadge.textContent = "Error";
           statusBadge.className = "badge err";
@@ -838,6 +891,10 @@ async function sendRequest() {
 
         responseBody.dataset.raw = res.body || "";
         responseBody.dataset.bytes = String(res.bodyBytes ?? new Blob([res.body || ""]).size);
+        responseBody.dataset.contentType = (res.headers || []).find(([key]) => key.toLowerCase() === "content-type")?.[1] || "text/plain";
+        responsePanel.dataset.received = "true";
+        copyHeadersBtn.disabled = copyBodyBtn.disabled = saveBodyBtn.disabled = false;
+        validateBtn.disabled = !(res.body || "").length;
         const statusClass =
           res.status >= 200 && res.status < 300
             ? "ok"
@@ -894,7 +951,10 @@ async function sendRequest() {
     clearSendingState();
     statusBadge.textContent = "Client Error";
     statusBadge.className = "badge err";
+    responseEmpty.hidden = true;
+    responseMeta.textContent = "Check your request and try again.";
     responseBody.textContent = err.message;
+    revealResponse();
     showToast("Error occurred");
   }
 }
@@ -915,12 +975,8 @@ async function copyCurl() {
   try {
     const text = buildCurl();
     await navigator.clipboard.writeText(text);
-    statusBadge.textContent = "cURL copied";
-    statusBadge.className = "badge ok";
     showToast("cURL copied");
   } catch (err) {
-    statusBadge.textContent = "Clipboard blocked";
-    statusBadge.className = "badge warn";
     showToast(err.message || "Clipboard blocked");
   }
 }
@@ -941,27 +997,21 @@ function resetForm() {
     ({ key = "", value = "" }) => createKVRow(headersListEl, key, value)
   );
 
-  statusBadge.textContent = "Waiting";
+  statusBadge.textContent = "Ready";
   statusBadge.className = "badge muted";
-  responseMeta.textContent = "";
-  responseHeaders.textContent = "";
-  responseBody.textContent = "";
-  delete responseBody.dataset.raw;
-  delete responseBody.dataset.bytes;
+  resetResponse();
 
   updatePreview();
   saveState();
 }
 
 function cycleTheme() {
-  const order = ["system", "dark", "light"];
-  const idx = order.indexOf(currentOptions.theme);
-  const next = order[(idx + 1) % order.length];
-  currentOptions.theme = next;
+  const next = currentOptions.theme === "dark" ? "light" : "dark";
+  applyTheme(next);
   chrome.storage.sync.get("options", ({ options }) => {
     const newOptions = { ...DEFAULT_OPTIONS, ...(options || {}), theme: next };
     chrome.storage.sync.set({ options: newOptions }, () => {
-      applyTheme(next);
+      if (chrome.runtime.lastError) showToast("Theme changed, but could not be saved");
     });
   });
 }
@@ -987,30 +1037,32 @@ function applyPreset() {
 }
 
 function clearHistory() {
-  historyItems = [];
-  chrome.storage.local.set({ history: historyItems });
-  renderHistory();
+  chrome.storage.local.set({ history: [] }, () => {
+    if (chrome.runtime.lastError) { showToast("Could not clear history"); return; }
+    historyItems = [];
+    renderHistory();
+    showToast("History cleared");
+  });
 }
 
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    statusBadge.textContent = "Copied";
-    statusBadge.className = "badge ok";
     showToast("Copied");
   } catch (err) {
-    statusBadge.textContent = "Clipboard blocked";
-    statusBadge.className = "badge warn";
     showToast("Clipboard blocked");
   }
 }
 
 function downloadBody() {
-  const blob = new Blob([responseBody.dataset.raw ?? responseBody.textContent ?? ""], { type: "text/plain" });
+  const type = responseBody.dataset.contentType || "text/plain";
+  const mime = type.split(";")[0].trim().toLowerCase();
+  const extension = /(?:\/|\+)json$/.test(mime) ? "json" : /(?:\/|\+)xml$/.test(mime) ? "xml" : ({ "text/html": "html", "text/css": "css", "text/csv": "csv" }[mime] || "txt");
+  const blob = new Blob([responseBody.dataset.raw ?? responseBody.textContent ?? ""], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "response.txt";
+  a.download = `response.${extension}`;
   a.click();
   // Defer revocation to allow the browser to initiate the download first
   setTimeout(() => URL.revokeObjectURL(url), 100);
@@ -1021,24 +1073,31 @@ let _confirmCallback = null;
 function showConfirm(message, onOk) {
   confirmModalMessage.textContent = message;
   _confirmCallback = onOk;
-  confirmModal.classList.add("show");
-  document.body.style.overflow = "hidden";
-  setTimeout(() => confirmModalOkBtn.focus(), MODAL_TRANSITION_DELAY);
+  window.QuickUI.openModal(confirmModal, confirmModalCancelBtn);
 }
 
 function closeConfirmModal() {
-  confirmModal.classList.remove("show");
-  document.body.style.overflow = "";
+  window.QuickUI.closeModal(confirmModal);
   _confirmCallback = null;
 }
 
+let toastTimeout;
 function showToast(message) {
   if (!toastEl) return;
   toastEl.textContent = message;
   toastEl.classList.add("show");
-  setTimeout(() => {
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
     toastEl.classList.remove("show");
   }, 1600);
+}
+
+function openRequestTab(event) {
+  event?.preventDefault();
+  chrome.storage.local.set({ lastRequest: snapshotRequest() }, () => {
+    if (chrome.runtime.lastError) { showToast("Could not open request - " + chrome.runtime.lastError.message); return; }
+    chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?tab=1") });
+  });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -1057,26 +1116,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 addQueryBtn.addEventListener("click", () => {
-  createKVRow(queryListEl);
+  createKVRow(queryListEl).querySelector("input").focus();
 });
 
 addHeaderBtn.addEventListener("click", () => {
-  createKVRow(headersListEl);
+  createKVRow(headersListEl).querySelector("input").focus();
 });
 
 sendBtn.addEventListener("click", sendRequest);
 sendBtnBottom.addEventListener("click", sendRequest);
 copyCurlBtn.addEventListener("click", copyCurl);
 clearBtn.addEventListener("click", resetForm);
+document.getElementById("openTabLink").addEventListener("click", openRequestTab);
 themeBtn.addEventListener("click", cycleTheme);
 applyPresetBtn.addEventListener("click", applyPreset);
 clearHistoryBtn.addEventListener("click", clearHistory);
-copyHeadersBtn.addEventListener("click", () => copyText(responseHeaders.innerText));
+copyHeadersBtn.addEventListener("click", () => copyText(responseHeaders.textContent));
 copyBodyBtn.addEventListener("click", () => copyText(responseBody.dataset.raw ?? responseBody.textContent));
 saveBodyBtn.addEventListener("click", downloadBody);
 
 // Favorites
 loadFavoriteBtn.addEventListener("click", applyFavorite);
+favoriteSelect.addEventListener("change", updateFavoriteActions);
+presetSelect.addEventListener("change", () => { applyPresetBtn.disabled = !PRESETS[presetSelect.value]; });
 saveFavoriteBtn.addEventListener("click", openSaveFavoriteModal);
 deleteFavoriteBtn.addEventListener("click", deleteFavorite);
 confirmSaveFavoriteBtn.addEventListener("click", () => {
@@ -1086,7 +1148,6 @@ confirmSaveFavoriteBtn.addEventListener("click", () => {
     return;
   }
   saveFavorite(name);
-  closeSaveFavoriteModalFn();
 });
 cancelSaveFavoriteBtn.addEventListener("click", closeSaveFavoriteModalFn);
 closeSaveFavoriteModal.addEventListener("click", closeSaveFavoriteModalFn);
@@ -1189,25 +1250,28 @@ document.addEventListener("keydown", (e) => {
       return;
     }
   }
+  if (document.querySelector(".modal.show")) return;
+  const isTyping = ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) || e.target.isContentEditable;
+  const plainKey = !e.ctrlKey && !e.metaKey && !e.altKey;
   
   // ?: Show help (only if not in input field)
-  if (e.key === "?" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+  if (e.key === "?" && plainKey && !isTyping) {
     e.preventDefault();
     openHelpModal();
     return;
   }
   
   // T: Toggle theme (only if not in input field)
-  if (e.key === "t" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+  if (e.key.toLowerCase() === "t" && plainKey && !isTyping) {
     e.preventDefault();
     cycleTheme();
     return;
   }
   
   // O: Open in new tab (only if not in input field)
-  if (e.key === "o" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+  if (e.key.toLowerCase() === "o" && plainKey && !isTyping) {
     e.preventDefault();
-    window.open("popup.html?tab=1", "_blank");
+    openRequestTab();
     return;
   }
   
@@ -1228,12 +1292,6 @@ favoriteName.addEventListener("keydown", (e) => {
   }
 });
 
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  if (currentOptions.theme === "system") {
-    applyTheme("system");
-  }
-});
-
 // Re-apply options and history when changed from the options page while popup is open
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.options) {
@@ -1248,13 +1306,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
     updatePreview();
   }
   if (area === "sync" && changes.environments) {
-    currentEnvironments = changes.environments.newValue || [];
+    currentEnvironments = Array.isArray(changes.environments.newValue) ? changes.environments.newValue : [];
     renderEnvSelect();
     renderHistory();
     updatePreview();
   }
   if (area === "local" && changes.history) {
-    historyItems = changes.history.newValue || [];
+    historyItems = Array.isArray(changes.history.newValue) ? changes.history.newValue : [];
     renderHistory();
   }
 });

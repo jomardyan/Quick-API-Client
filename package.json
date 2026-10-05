@@ -4,10 +4,11 @@
   "description": "Test REST/GraphQL APIs from a browser extension popup",
   "private": true,
   "scripts": {
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
-    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "lint": "eslint .",
-    "test:browser": "node scripts/browser-smoke.js"
+    "test:browser": "node scripts/browser-smoke.js",
+    "test:browser:source": "node scripts/browser-smoke.js --source"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",

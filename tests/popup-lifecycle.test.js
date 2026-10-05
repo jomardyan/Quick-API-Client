@@ -75,3 +75,59 @@ test('authentication replacement preserves password spaces and avoids duplicate 
   const headers = win.readKV(element('headers')).filter(h => h.key.toLowerCase() === 'authorization');
   expect(headers).toEqual([{ key: 'Authorization', value: 'Bearer new-token' }]);
 });
+
+test('clipboard actions preserve the HTTP response status even when copying fails', async () => {
+  await win.sendRequest();
+  callbacks[0].callback({ ...response('problem'), status: 422, statusText: 'Unprocessable Entity' });
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: jest.fn().mockResolvedValue(undefined) } });
+  await win.copyText('problem');
+  await win.copyCurl();
+  expect(element('statusBadge').textContent).toBe('422 Unprocessable Entity');
+  navigator.clipboard.writeText.mockRejectedValueOnce(new Error('Denied'));
+  await win.copyText('problem');
+  expect(element('statusBadge').textContent).toBe('422 Unprocessable Entity');
+});
+
+test('invalid requests clear the previous raw body and disable response actions', async () => {
+  await win.sendRequest();
+  callbacks[0].callback(response('old response'));
+  expect(element('copyBodyBtn').disabled).toBe(false);
+  element('url').value = 'ftp://invalid';
+  await win.sendRequest();
+  expect(element('responseBody').dataset.raw).toBeUndefined();
+  expect(element('responseHeaders').textContent).toBe('');
+  expect(element('copyBodyBtn').disabled).toBe(true);
+  expect(element('saveBodyBtn').disabled).toBe(true);
+  expect(element('statusBadge').textContent).toBe('Client Error');
+});
+
+test('a failed favorite save keeps its dialog and entered name for retry', () => {
+  win.openSaveFavoriteModal();
+  element('favoriteName').value = 'Keep my name';
+  chrome.storage.sync.set.mockImplementationOnce((update, callback) => {
+    chrome.runtime.lastError = { message: 'Quota exceeded' };
+    callback();
+    delete chrome.runtime.lastError;
+  });
+  element('confirmSaveFavoriteBtn').click();
+  expect(element('saveFavoriteModal').classList.contains('show')).toBe(true);
+  expect(element('favoriteName').value).toBe('Keep my name');
+  expect(element('confirmSaveFavoriteBtn').disabled).toBe(false);
+  element('cancelSaveFavoriteBtn').click();
+});
+
+test('adding query authentication preserves parameters with a different case', () => {
+  element('queryParams').innerHTML = '';
+  win.createKVRow(element('queryParams'), 'API_KEY', 'other');
+  win.upsertAuth(element('queryParams'), 'api_key', 'token');
+  expect(win.readKV(element('queryParams'))).toEqual([
+    { key: 'API_KEY', value: 'other' }, { key: 'api_key', value: 'token' },
+  ]);
+});
+
+test('sending synchronously updates the preview from the current draft', async () => {
+  element('body').value = 'new draft';
+  await win.sendRequest();
+  expect(element('requestPreview').textContent).toContain('new draft');
+  expect(callbacks[0].message.payload.body).toBe('new draft');
+});

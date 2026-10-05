@@ -1,3 +1,18 @@
+## Unreleased - 2026-10-05
+
+- Default to light theme, remove automatic/system theme mode and toggle directly between light and dark; legacy automatic preferences resolve to light.
+- Fix collapsed toolbar popups by giving the document an explicit initial size and fitting the workspace to Chrome's available viewport; test the actual browser-action surface.
+- Fill full-tab views with request and response columns; keep popup controls visible and the Send bar outside scrolling content.
+- Prevent toolbar label clipping and horizontal overflow; make short dialogs scroll without hiding their actions.
+- Add dialog focus trapping, background isolation, focus restoration and accessible query/header controls.
+- Preserve HTTP status during clipboard actions and clear stale response data on failed requests.
+- Refresh the request preview immediately on Send, reveal responses in compact views and preserve draft edits when opening a tab.
+- Disable unavailable actions, select newly saved favorites and keep failed saves open for retry.
+- Add settings/environment navigation, visible validation feedback and content-type-aware response filenames.
+- Fix invisible checkbox checkmarks, the narrow settings header and timing text contrast in light mode.
+- Reject malformed settings/environment JSON without overwriting stored values.
+- Make Jest and packaged browser checks work on Windows and cover layout and interaction regressions in Chromium.
+
 ## 1.1.5 - 2026-09-11
 
 - Prevent duplicate sends during permission prompts and ignore stale callbacks after cancellation.

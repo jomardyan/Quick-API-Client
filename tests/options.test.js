@@ -6,6 +6,7 @@ let data;
 chrome.storage.sync.get.mockImplementation((key, cb) => cb(data));
 chrome.storage.sync.set.mockImplementation((update, cb) => { data = { ...data, ...update }; if (cb) cb(); });
 window.eval(fs.readFileSync(path.join(__dirname, '../defaults.js'), 'utf8'));
+window.eval(fs.readFileSync(path.join(__dirname, '../popup/ui.js'), 'utf8'));
 window.eval(fs.readFileSync(path.join(__dirname, '../options.js'), 'utf8'));
 const el = id => document.getElementById(id);
 beforeEach(() => {
@@ -44,4 +45,24 @@ test('reset preferences preserves favorites', () => {
 test('invalid numeric settings normalize to finite defaults', () => {
   expect(window.clampTimeoutMs(NaN)).toBe(15000);
   expect(window.clampHistorySize(3.8)).toBe(3);
+});
+
+test('malformed JSON settings report an error and preserve stored options', () => {
+  el('defaultHeaders').value = '[{"key":';
+  const previous = JSON.stringify(data.options);
+  el('saveBtn').click();
+  expect(el('status').textContent).toMatch(/valid JSON/);
+  expect(JSON.stringify(data.options)).toBe(previous);
+});
+
+test('invalid environment variables cannot partially rename the environment', () => {
+  el('envNameInput').value = 'Do not rename';
+  el('envVarsInput').value = '[{"key":';
+  el('saveEnvBtn').click();
+  expect(data.environments[0].name).toBe('Test');
+  expect(el('status').textContent).toMatch(/valid JSON/);
+});
+
+test('lines missing a colon do not silently become empty-valued variables', () => {
+  expect(() => window.parseKVText('HOST')).toThrow(/key: value/);
 });
