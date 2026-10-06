@@ -37,6 +37,12 @@ On Windows, `npm test` and both browser checks work directly from PowerShell. To
 
 The release script validates source before bumping versions. It updates the manifest, package and lockfile together and includes all runtime modules. GitHub Actions runs lint, regression tests, packaging and the Chromium smoke test, then provides the current ZIP as an artifact.
 
+## Generate icons and store listing images
+
+Run `npm run assets:generate` to rebuild the modernized extension icons, Chrome and Edge promotional tiles, and screenshots of the current UI. Run `npm run assets:check` to verify PNG dimensions, color channels, icon padding, and screenshot counts. Chromium must be installed with `npx playwright install chromium`.
+
+Review [the artwork preview](store-assets/preview.html) or [the contact sheet](store-assets/contact-sheet.png). [The upload guide](store-assets/README.md) maps each file to its store field and links the official requirements. Chrome and Edge upload sets are separate under `store-assets/chrome/` and `store-assets/edge/`. The editable logo master is [icons/icon.svg](icons/icon.svg).
+
 ## Build a Chrome / Edge store ZIP with GitHub Actions
 
 Open **Actions → Build store release → Run workflow** and select the branch or tag to package. After it succeeds, download the **quick-api-client-v<version>.zip** artifact and upload that ZIP directly to the Chrome Web Store or Microsoft Edge Add-ons dashboard. No extraction or repackaging is needed. It contains the manifest at the ZIP root and the same runtime files as `make pack`. The workflow uses GitHub's direct-file artifact upload with `archive: false` to avoid nesting the extension ZIP inside another ZIP.

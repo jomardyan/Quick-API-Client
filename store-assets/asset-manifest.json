@@ -1,0 +1,325 @@
+{
+  "extensionVersion": "1.2.1",
+  "requirementsChecked": "2026-10-06",
+  "sources": [
+    "https://developer.chrome.com/docs/webstore/images",
+    "https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension#step-7-enter-store-listing-details-for-each-language"
+  ],
+  "assets": [
+    {
+      "file": "icons/icon16.png",
+      "width": 16,
+      "height": 16,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 635,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon20.png",
+      "width": 20,
+      "height": 20,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 737,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon24.png",
+      "width": 24,
+      "height": 24,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 885,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon32.png",
+      "width": 32,
+      "height": 32,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 1132,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon48.png",
+      "width": 48,
+      "height": 48,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 1288,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon64.png",
+      "width": 64,
+      "height": 64,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 1450,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon96.png",
+      "width": 96,
+      "height": 96,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 2166,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon128.png",
+      "width": 128,
+      "height": 128,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 2680,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon256.png",
+      "width": 256,
+      "height": 256,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 5187,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "icons/icon512.png",
+      "width": 512,
+      "height": 512,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 12481,
+      "purpose": "Extension icon"
+    },
+    {
+      "file": "store-assets/chrome/store-icon-128.png",
+      "width": 128,
+      "height": 128,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 2680,
+      "purpose": "Chrome listing icon"
+    },
+    {
+      "file": "store-assets/edge/store-logo-300.png",
+      "width": 300,
+      "height": 300,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 6970,
+      "purpose": "Edge recommended listing logo"
+    },
+    {
+      "file": "store-assets/source/logo-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "channels": 4,
+      "alpha": true,
+      "bytes": 32391,
+      "purpose": "High resolution brand master"
+    },
+    {
+      "file": "store-assets/chrome/promo-small.png",
+      "width": 440,
+      "height": 280,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 31887,
+      "purpose": "Text-free brand promotional tile"
+    },
+    {
+      "file": "store-assets/edge/promo-small.png",
+      "width": 440,
+      "height": 280,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 31887,
+      "purpose": "Text-free brand promotional tile"
+    },
+    {
+      "file": "store-assets/chrome/promo-marquee.png",
+      "width": 1400,
+      "height": 560,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 91852,
+      "purpose": "Text-free brand promotional tile"
+    },
+    {
+      "file": "store-assets/edge/promo-marquee.png",
+      "width": 1400,
+      "height": 560,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 91852,
+      "purpose": "Text-free brand promotional tile"
+    },
+    {
+      "file": "store-assets/source/screenshots/01-rest-dark.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 57300,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/01-rest-dark.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 218813,
+      "purpose": "Your API. One browser tab."
+    },
+    {
+      "file": "store-assets/chrome/screenshots/01-rest-dark.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 218813,
+      "purpose": "Your API. One browser tab."
+    },
+    {
+      "file": "store-assets/source/screenshots/02-post-light.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 61130,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/02-post-light.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 212230,
+      "purpose": "Build the request you need."
+    },
+    {
+      "file": "store-assets/chrome/screenshots/02-post-light.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 212230,
+      "purpose": "Build the request you need."
+    },
+    {
+      "file": "store-assets/source/screenshots/03-graphql.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 59934,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/03-graphql.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 229493,
+      "purpose": "GraphQL, with variables."
+    },
+    {
+      "file": "store-assets/chrome/screenshots/03-graphql.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 229493,
+      "purpose": "GraphQL, with variables."
+    },
+    {
+      "file": "store-assets/source/screenshots/04-code-snippets.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 62764,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/04-code-snippets.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 192339,
+      "purpose": "Take your request into code."
+    },
+    {
+      "file": "store-assets/chrome/screenshots/04-code-snippets.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 192339,
+      "purpose": "Take your request into code."
+    },
+    {
+      "file": "store-assets/source/screenshots/05-environments.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 30584,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/05-environments.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 131981,
+      "purpose": "Switch environments. Keep your flow."
+    },
+    {
+      "file": "store-assets/chrome/screenshots/05-environments.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 131981,
+      "purpose": "Switch environments. Keep your flow."
+    },
+    {
+      "file": "store-assets/source/screenshots/06-validation.png",
+      "width": 1280,
+      "height": 720,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 54388,
+      "purpose": "Unmodified UI capture with demonstration data"
+    },
+    {
+      "file": "store-assets/edge/screenshots/06-validation.png",
+      "width": 1280,
+      "height": 800,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 174923,
+      "purpose": "Check your response in a click."
+    },
+    {
+      "file": "store-assets/contact-sheet.png",
+      "width": 1440,
+      "height": 1717,
+      "channels": 3,
+      "alpha": false,
+      "bytes": 305167,
+      "purpose": "Artwork review sheet; do not upload to stores"
+    }
+  ]
+}

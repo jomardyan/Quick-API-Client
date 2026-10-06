@@ -8,7 +8,9 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "lint": "eslint .",
     "test:browser": "node scripts/browser-smoke.js",
-    "test:browser:source": "node scripts/browser-smoke.js --source"
+    "test:browser:source": "node scripts/browser-smoke.js --source",
+    "assets:generate": "node generate-screenshots.js",
+    "assets:check": "node scripts/generate-store-assets.js --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",
@@ -16,7 +18,8 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-webextension-mock": "^3.9.0",
-    "playwright": "^1.55.1"
+    "playwright": "^1.55.1",
+    "sharp": "^0.35.5"
   },
   "jest": {
     "testEnvironment": "jsdom",
