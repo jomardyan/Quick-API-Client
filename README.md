@@ -39,11 +39,11 @@ The release script validates source before bumping versions. It updates the mani
 
 ## Build a Chrome / Edge store ZIP with GitHub Actions
 
-Open **Actions → Build store release → Run workflow** and select the branch or tag to package. After it succeeds, download the **quick-api-client** artifact and extract it to get `quick-api-client-v<version>.zip`. Upload that inner ZIP to the Chrome Web Store or Microsoft Edge Add-ons dashboard. It contains the manifest at the ZIP root and the same runtime files as `make pack`.
+Open **Actions → Build store release → Run workflow** and select the branch or tag to package. After it succeeds, download the **quick-api-client-v<version>.zip** artifact and upload that ZIP directly to the Chrome Web Store or Microsoft Edge Add-ons dashboard. No extraction or repackaging is needed. It contains the manifest at the ZIP root and the same runtime files as `make pack`. The workflow uses GitHub's direct-file artifact upload with `archive: false` to avoid nesting the extension ZIP inside another ZIP.
 
 Every push to **main** automatically builds the ZIP and attaches it to a GitHub prerelease named `v<manifest version>-build.<run number>`. Build numbers let successive pushes use the same manifest version, and rerunning a build refreshes its ZIP. Manual runs also offer **Also publish the ZIP as a GitHub release**. The workflow reuses validation and `release.sh --no-bump`, so it packages the committed version after lint, tests and the packaged Chromium checks pass.
 
-No additional secrets or manually pushed tags are needed. Increase and commit the extension version before submitting an update to the stores; build numbers identify GitHub releases and do not change the manifest version.
+No additional secrets or manually pushed tags are needed. Increase and commit the extension version before submitting an update to the stores; build numbers identify GitHub releases and do not change the manifest version. Update `manifest.json`, `package.json` and both root version fields in `package-lock.json` together, or use `./release.sh patch`. The package version must be greater than the version already published in the store: this release uses **1.2.1** to update the published **1.2.0**.
 
 ## Operating limits
 

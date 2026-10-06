@@ -34,10 +34,11 @@ jobs:
           fetch-depth: 0
 
       - name: Download verified extension ZIP
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: quick-api-client
+          name: quick-api-client-v${{ needs.build.outputs.version }}.zip
           path: dist
+          skip-decompress: true
 
       - name: Create GitHub release with Chrome / Edge package
         shell: bash

@@ -28,8 +28,9 @@ jobs:
       - run: npm run test:browser
       - id: version
         run: echo "value=$(node -p 'require("./manifest.json").version')" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - name: Upload store-ready ZIP without wrapping it in another archive
+        uses: actions/upload-artifact@v7
         with:
-          name: quick-api-client
           path: dist/quick-api-client-v${{ steps.version.outputs.value }}.zip
+          archive: false
           if-no-files-found: error

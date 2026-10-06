@@ -1,4 +1,7 @@
-## Unreleased - 2026-10-05
+## 1.2.1 - 2026-10-06
+
+- Upload the store-ready ZIP directly as the workflow artifact without a nested ZIP, and preserve it when downloading for GitHub releases.
+- Synchronize manifest and package versions at 1.2.1 so the package can update the published 1.2.0 release.
 
 - Default to light theme, remove automatic/system theme mode and toggle directly between light and dark; legacy automatic preferences resolve to light.
 - Fix collapsed toolbar popups by giving the document an explicit initial size and fitting the workspace to Chrome's available viewport; test the actual browser-action surface.
