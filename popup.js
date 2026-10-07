@@ -304,6 +304,114 @@ function highlightJson(text) {
     );
 }
 
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function tokSpan(cls, text) {
+  return `<span class="${cls}">${escapeHtml(text)}</span>`;
+}
+
+// Runs `regex` over `text`, wrapping matches via `classify(match)` and escaping everything else.
+function tokenize(text, regex, classify) {
+  let out = "";
+  let last = 0;
+  text.replace(regex, (match, ...rest) => {
+    const offset = rest[rest.length - 2];
+    out += escapeHtml(text.slice(last, offset));
+    out += classify(match);
+    last = offset + match.length;
+    return match;
+  });
+  return out + escapeHtml(text.slice(last));
+}
+
+function highlightMarkup(text) {
+  const tagRe = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<[!?][^>]*>|<\/?[A-Za-z][^\s>/]*(?:"[^"]*"|'[^']*'|[^>"'])*>/g;
+  return tokenize(text, tagRe, (m) => {
+    if (m.startsWith("<!--")) return tokSpan("tok-comment", m);
+    if (/^<[!?]/.test(m)) return tokSpan("tok-meta", m);
+    const parts = /^(<\/?)([^\s>/]+)([\s\S]*?)(\/?>)$/.exec(m);
+    if (!parts) return escapeHtml(m);
+    const attrs = tokenize(parts[3], /([^\s=]+)(?:(=)("[^"]*"|'[^']*'|[^\s"']+))?/g, (a) => {
+      const am = /^([^\s=]+)(?:(=)([\s\S]*))?$/.exec(a);
+      return am[2]
+        ? tokSpan("tok-attr", am[1]) + escapeHtml("=") + tokSpan("tok-str", am[3])
+        : tokSpan("tok-attr", am[1]);
+    });
+    return escapeHtml(parts[1]) + tokSpan("tok-tag", parts[2]) + attrs + escapeHtml(parts[4]);
+  });
+}
+
+function highlightCss(text) {
+  const re = /\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|@[\w-]+|#[0-9a-fA-F]{3,8}\b|-?\d*\.?\d+(?:px|em|rem|%|vh|vw|s|ms|deg|fr)?\b|[\w-]+(?=\s*:(?!:))/g;
+  return tokenize(text, re, (m) => {
+    if (m.startsWith("/*")) return tokSpan("tok-comment", m);
+    if (/^["']/.test(m)) return tokSpan("tok-str", m);
+    if (m[0] === "@") return tokSpan("tok-keyword", m);
+    if (m[0] === "#" || /^-?\d/.test(m) || /^-?\./.test(m)) return tokSpan("tok-num", m);
+    return tokSpan("tok-key", m);
+  });
+}
+
+const JS_KEYWORDS = "var|let|const|function|return|if|else|for|while|do|switch|case|break|continue|new|this|class|extends|import|export|from|default|async|await|try|catch|finally|throw|typeof|instanceof|in|of|delete|void|yield";
+
+function highlightJs(text) {
+  const re = new RegExp(
+    `\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*|"(?:\\\\.|[^"\\\\\\n])*"|'(?:\\\\.|[^'\\\\\\n])*'|\`(?:\\\\[\\s\\S]|[^\`\\\\])*\`|\\b(?:true|false|null|undefined)\\b|\\b(?:${JS_KEYWORDS})\\b|\\b\\d+(?:\\.\\d+)?\\b`,
+    "g"
+  );
+  return tokenize(text, re, (m) => {
+    if (m.startsWith("/*") || m.startsWith("//")) return tokSpan("tok-comment", m);
+    if (/^["'`]/.test(m)) return tokSpan("tok-str", m);
+    if (/^(true|false)$/.test(m)) return tokSpan("tok-bool", m);
+    if (/^(null|undefined)$/.test(m)) return tokSpan("tok-null", m);
+    if (/^\d/.test(m)) return tokSpan("tok-num", m);
+    return tokSpan("tok-keyword", m);
+  });
+}
+
+// Picks a body language from the Content-Type header, falling back to sniffing the body.
+function detectBodyLang(contentType, body) {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.includes("json")) return "json";
+  if (ct.includes("html")) return "html";
+  if (ct.includes("xml")) return "xml";
+  if (ct.includes("css")) return "css";
+  if (ct.includes("javascript") || ct.includes("ecmascript")) return "js";
+  const head = body.trimStart();
+  if (/^(?:<!doctype\s+html|<html[\s>])/i.test(head)) return "html";
+  if (/^<\?xml/i.test(head)) return "xml";
+  if (head.startsWith("{") || head.startsWith("[")) {
+    try {
+      JSON.parse(body);
+      return "json";
+    } catch (err) {
+      return "text";
+    }
+  }
+  if (head.startsWith("<")) return "xml";
+  try {
+    JSON.parse(body);
+    return "json";
+  } catch (err) {
+    return "text";
+  }
+}
+
+function renderBody(contentType, body) {
+  if (body.length > 200000) return { lang: "text", html: null, text: body };
+  const lang = detectBodyLang(contentType, body);
+  switch (lang) {
+    case "json": return { lang, html: highlightJson(prettifyJsonMaybe(body)) };
+    case "html":
+    case "xml": return { lang, html: highlightMarkup(body) };
+    case "css": return { lang, html: highlightCss(body) };
+    case "js": return { lang, html: highlightJs(body) };
+    default: return { lang: "text", html: null, text: body };
+  }
+}
+
 function highlightHeaders(lines) {
   return lines
     .map((line, idx) => {
@@ -907,26 +1015,13 @@ async function sendRequest() {
         const headerLines = (res.headers || []).map(([k, v]) => `${k}: ${v}`);
         const headerBlock = [`HTTP ${res.status} ${res.statusText}`, ...headerLines];
         responseHeaders.innerHTML = highlightHeaders(headerBlock);
-        const isJson = (res.body || "").length <= 200000 && (
-          (res.headers || []).some(
-            ([k, v]) => k.toLowerCase() === "content-type" && v.toLowerCase().includes("json")
-          ) ||
-          (() => {
-            try {
-              JSON.parse(res.body || "");
-              return true;
-            } catch (err) {
-              return false;
-            }
-          })());
-        if (isJson) {
-          const pretty = prettifyJsonMaybe(res.body || "");
-          responseBody.innerHTML = highlightJson(pretty);
-          responseBody.dataset.lang = "json";
+        const rendered = renderBody(responseBody.dataset.contentType, res.body || "");
+        if (rendered.html !== null) {
+          responseBody.innerHTML = rendered.html;
         } else {
-          responseBody.textContent = res.body || "";
-          responseBody.dataset.lang = "text";
+          responseBody.textContent = rendered.text;
         }
+        responseBody.dataset.lang = rendered.lang;
         
         showToast(statusClass === "ok" ? "Success" : "Request completed");
 

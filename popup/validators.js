@@ -130,6 +130,8 @@
    * that popup.js has already rendered into `#responseHeaders`.
    */
   function detectContentType() {
+    const detected = document.getElementById("responseBody")?.dataset.lang;
+    if (["json", "xml", "html", "css"].includes(detected)) return detected;
     const headerText = (
       document.getElementById("responseHeaders")?.textContent || ""
     ).toLowerCase();

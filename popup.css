@@ -615,7 +615,7 @@ body[data-theme="light"] .badge.ok {
   transition: border-color 120ms;
 }
 .code.small { min-height: 28px; padding: 6px 10px; }
-.code[data-lang="json"] {
+.code[data-lang]:not([data-lang="text"]) {
   border-color: rgba(88, 166, 255, 0.35);
 }
 
@@ -628,6 +628,17 @@ body[data-theme="light"] .badge.ok {
 .tok-header-key { color: #79c0ff; font-weight: 600; }
 .tok-header-val { color: #a5d6ff; }
 .tok-status     { color: #3fb950; font-weight: 700; }
+.tok-tag        { color: #7ee787; }
+.tok-attr       { color: #79c0ff; }
+.tok-keyword    { color: #ff7b72; }
+.tok-comment    { color: #8b949e; font-style: italic; }
+.tok-meta       { color: #d2a8ff; }
+
+body[data-theme="light"] .tok-tag        { color: #116329; }
+body[data-theme="light"] .tok-attr       { color: #0550ae; }
+body[data-theme="light"] .tok-keyword    { color: #cf222e; }
+body[data-theme="light"] .tok-comment    { color: #6e7781; }
+body[data-theme="light"] .tok-meta       { color: #8250df; }
 
 body[data-theme="light"] .tok-key        { color: #0550ae; }
 body[data-theme="light"] .tok-str        { color: #0a3069; }
