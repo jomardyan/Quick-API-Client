@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Quick API Client",
+  "name": "Quick REST API Client",
   "version": "1.2.1",
   "author": "Hayk Jomardyan",
   "homepage_url": "https://github.com/jomardyan/Quick-API-Client",
   "description": "Test REST APIs from a popup: configure method, URL, headers, query params, body, view response, and copy cURL.",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Quick API Client",
+    "default_title": "Quick REST API Client",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -31,7 +31,7 @@
         "default": "Ctrl+Shift+A",
         "mac": "Command+Shift+A"
       },
-      "description": "Open Quick API Client"
+      "description": "Open Quick REST API Client"
     }
   },
   "optional_host_permissions": [

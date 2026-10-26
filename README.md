@@ -1,4 +1,4 @@
-# Quick API Client
+# Quick REST API Client
 
 A Chrome and Edge extension for testing REST and GraphQL APIs.
 

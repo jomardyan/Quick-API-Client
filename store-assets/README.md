@@ -1,4 +1,4 @@
-# Quick API Client — store artwork
+# Quick REST API Client — store artwork
 
 Artwork for extension version **1.2.1**, generated from editable vector artwork and the current extension UI. Requirements checked against the official store documentation on **2026-10-06**.
 

@@ -30,9 +30,9 @@
 - Include all popup modules in release archives and synchronize version metadata.
 - Replace copied test implementations with source-based checks and add regression and browser package tests.
 
-# Changelog - Quick API Client
+# Changelog - Quick REST API Client
 
-Welcome to the **Quick API Client** release log. Below is the list of changes, optimizations, and new features introduced for the Chrome Store and Edge Add-ons.
+Welcome to the **Quick REST API Client** release log. Below is the list of changes, optimizations, and new features introduced for the Chrome Store and Edge Add-ons.
 
 ---
 

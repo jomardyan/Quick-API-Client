@@ -62,7 +62,7 @@ jobs:
             gh release upload "$release_tag" "$release_zip" --clobber
           else
             gh release create "$release_tag" "$release_zip" \
-              --title "Quick API Client v${RELEASE_VERSION} (build ${GITHUB_RUN_NUMBER})" \
+              --title "Quick REST API Client v${RELEASE_VERSION} (build ${GITHUB_RUN_NUMBER})" \
               --target "$GITHUB_SHA" \
               --prerelease \
               --generate-notes

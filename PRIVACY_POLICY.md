@@ -1,8 +1,8 @@
-# Privacy Policy for Quick API Client
+# Privacy Policy for Quick REST API Client
 
 Effective date 2026-09-11
 
-Quick API Client is provided by Hayk Jomardyan. This policy describes the extension's implemented data handling.
+Quick REST API Client is provided by Hayk Jomardyan. This policy describes the extension's implemented data handling.
 
 ## API requests
 
