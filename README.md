@@ -95,3 +95,8 @@ After changing adapter dependencies, run `npm install --ignore-scripts`, then
 links. Verify the result with a fresh `npm ci` and the consumer tests. CI rejects
 Low or higher advisories across the full graph and still checks production
 packages separately. Release publication remains an explicit manual action.
+
+## Copyright
+
+Copyright (c) 2026 Hayk Jomardyan - Lolisoft.
+See COPYRIGHT.md for attribution and existing license notices.
