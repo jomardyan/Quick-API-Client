@@ -22,7 +22,7 @@ jobs:
   publish:
     name: Publish verified ZIP
     needs: build
-    if: github.event_name == 'push' || inputs.publish
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

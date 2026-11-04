@@ -68,3 +68,5 @@ Open in tab carries the current draft into the new workspace immediately, even w
 Hayk Jomardyan - [GitHub](https://github.com/jomardyan)
 
 The repository contains the Creative Commons Attribution-NoDerivatives 4.0 International license. See [LICENSE](LICENSE).
+
+[Maintenance audit and validation notes](docs/AUDIT-2026-11-04.md) documents the reviewed scope, development commands, checks and remaining limits.
