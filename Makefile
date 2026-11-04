@@ -60,3 +60,11 @@ help: ## Show available make targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
+
+.PHONY: build dev package
+build: lint ## Validate the unpacked extension (no compilation needed)
+
+dev: build ## Prepare source for loading as an unpacked extension
+	@node -e "console.log('Load this repository directory using Load unpacked at chrome://extensions/; reload after editing.')"
+
+package: pack ## Create the local ZIP without a version bump or publication
