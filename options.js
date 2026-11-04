@@ -75,7 +75,7 @@ function parseKVText(text) {
   if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
     let parsed;
     try { parsed = JSON.parse(trimmed); }
-    catch (_) { throw new Error("Enter a valid JSON array or one key: value pair per line."); }
+    catch (cause) { throw new Error("Enter a valid JSON array or one key: value pair per line.", { cause }); }
     if (!Array.isArray(parsed) || parsed.some(item => !item || typeof item.key !== "string" || typeof item.value === "object" && item.value !== null)) {
       throw new Error("Use a JSON array of objects with a key and a value.");
     }

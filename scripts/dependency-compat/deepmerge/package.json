@@ -1,0 +1,7 @@
+{
+  "name": "@lolisoft/deepmerge-safe",
+  "version": "1.0.0",
+  "description": "MIT deepmerge 4.3.1 with safe own-property writes",
+  "license": "MIT",
+  "main": "index.cjs"
+}

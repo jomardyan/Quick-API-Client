@@ -20,7 +20,7 @@ Download the latest versioned ZIP from `dist`, extract it, and use Load unpacked
 
 ## Development and verification
 
-Requires Node.js 22, npm, Bash, jq, zip and unzip.
+Requires Node.js 22.22.2+, 24.15+ or 26+, npm, Bash, jq, zip and unzip.
 
 ```sh
 npm ci
@@ -72,3 +72,26 @@ The repository contains the Creative Commons Attribution-NoDerivatives 4.0 Inter
 [Maintenance audit and validation notes](docs/AUDIT-2026-11-04.md) documents the reviewed scope, development commands, checks and remaining limits.
 
 `make build` validates the runnable extension source; `make dev` prepares it and prints the unpacked-extension loading instructions. `make package` aliases `make pack`, creating a local ZIP without bumping the version or publishing.
+
+## Dependency maintenance
+
+Development tooling requires Node.js 22.22.2+, 24.15+ or 26+. `npm ci`,
+`npm run test:dependencies`, `npm run lint`, `npm test -- --runInBand`, and
+`npm audit --audit-level=low` validate the complete installed toolchain. Store
+packaging runs the compatibility tests before creating the existing extension ZIP.
+No Node dependencies are shipped in the browser extension.
+
+ESLint 10 uses `eslint.config.cjs`; Jest 30 retains the complete extension test suite.
+The source-reviewed adapters in `scripts/dependency-compat/` keep the exact
+callable/named matcher and callback/promise/synchronous glob APIs used by the
+installed ESLint/Jest consumers, backed by patched minimatch 11/glob 14. They do not
+implement legacy Glob EventEmitter/abort behavior, which these consumers do not
+use. The MIT deepmerge 4.3.1 copy retains its license and uses safe own-property
+writes instead of invoking prototype setters. Review these local patches when
+updating tooling; Dependabot cannot maintain a local fork automatically.
+
+After changing adapter dependencies, run `npm install --ignore-scripts`, then
+`node scripts/normalize-compat-lock.cjs` to normalize npm's transitive local-file
+links. Verify the result with a fresh `npm ci` and the consumer tests. CI rejects
+Low or higher advisories across the full graph and still checks production
+packages separately. Release publication remains an explicit manual action.

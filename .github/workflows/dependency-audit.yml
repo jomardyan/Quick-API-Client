@@ -35,5 +35,7 @@ jobs:
           name: dependency-advisories-${{ strategy.job-index }}
           path: ${{ matrix.directory }}/dependency-advisories.json
           if-no-files-found: error
+      - name: Reject vulnerable development or production dependencies
+        run: npm audit --audit-level=low
       - name: Reject vulnerable production dependencies
         run: npm audit --omit=dev --audit-level=moderate

@@ -48,7 +48,7 @@
     if (state.gqlMode) {
       let variables;
       try { variables = JSON.parse(replace(state.gqlVariables).trim() || "{}"); }
-      catch (_) { throw new Error("GraphQL variables must be valid JSON"); }
+      catch (cause) { throw new Error("GraphQL variables must be valid JSON", { cause }); }
       if (!variables || Array.isArray(variables) || typeof variables !== "object") throw new Error("GraphQL variables must be a JSON object");
       body = JSON.stringify({ query: body, variables });
       const index = headers.findIndex(h => h.key.toLowerCase() === "content-type");

@@ -75,6 +75,7 @@ echo "New version     : $NEW_VERSION"
 
 # Validate source before changing version metadata.
 npm run lint
+npm run test:dependencies
 npm test -- --runInBand
 
 if [[ "$BUMP_TYPE" != "--no-bump" ]]; then

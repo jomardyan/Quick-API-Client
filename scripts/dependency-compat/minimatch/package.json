@@ -1,0 +1,10 @@
+{
+  "name": "@lolisoft/minimatch-compat",
+  "version": "1.0.0",
+  "description": "Legacy callable CommonJS API backed by patched minimatch 11",
+  "license": "ISC",
+  "main": "index.cjs",
+  "dependencies": {
+    "minimatch-modern": "npm:minimatch@^11.0.4"
+  }
+}

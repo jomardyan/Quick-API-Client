@@ -23,6 +23,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=low
       - run: ./release.sh --no-bump
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser

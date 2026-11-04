@@ -1,0 +1,10 @@
+{
+  "name": "@lolisoft/glob-compat",
+  "version": "1.0.0",
+  "description": "Legacy callback and modern promise glob APIs backed by patched glob14",
+  "license": "ISC",
+  "main": "index.cjs",
+  "dependencies": {
+    "glob-modern": "npm:glob@^14.0.3"
+  }
+}
