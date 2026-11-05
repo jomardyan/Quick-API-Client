@@ -10,10 +10,13 @@ SHELL := $(BASH)
 NODE ?= node
 NPM ?= npm
 ZIP ?= zip
+ZIP_BIN ?= $(ZIP)
+# Info-ZIP reserves ZIP for default options, so keep the legacy Make alias local.
+unexport ZIP
 JQ ?= jq
 RELEASE_SCRIPT ?= ./release.sh
 DIST_DIR ?= dist/generated
-export NODE NPM ZIP JQ DIST_DIR
+export NODE NPM ZIP_BIN JQ DIST_DIR
 .PHONY: help install test test-dependencies lint check build dev pack package release release-minor release-major clean guard-dist
 help: ## Show commands and publishing/version-bump distinctions
 	@"$(NODE)" scripts/make-support.mjs help

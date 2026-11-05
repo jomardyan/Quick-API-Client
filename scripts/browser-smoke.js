@@ -12,7 +12,7 @@ const { execFileSync } = require('child_process');
   const extension = path.join(temp, 'extension');
   fs.mkdirSync(extension);
   const manifest = require('../manifest.json');
-  const archive = path.resolve(__dirname, `../dist/quick-api-client-v${manifest.version}.zip`);
+  const archive = path.resolve(__dirname, '..', process.env.DIST_DIR || 'dist/generated', `quick-api-client-v${manifest.version}.zip`);
   if (process.argv.includes('--source')) {
     const root = path.resolve(__dirname, '..');
     const release = fs.readFileSync(path.join(root, 'release.sh'), 'utf8');

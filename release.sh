@@ -18,7 +18,7 @@ PKG="package.json"
 DIST_DIR="${DIST_DIR:-dist/generated}"
 NODE_BIN="${NODE:-node}"
 NPM_BIN="${NPM:-npm}"
-ZIP_BIN="${ZIP:-zip}"
+ZIP_BIN="${ZIP_BIN:-zip}"
 JQ_BIN="${JQ:-jq}"
 
 # Files/dirs to include in the ZIP (relative to project root)
@@ -34,6 +34,7 @@ INCLUDE_FILES=(
   defaults.js
   popup/
   LICENSE
+  COPYRIGHT.md
   PRIVACY_POLICY.md
   icons/
 )
@@ -109,6 +110,10 @@ rm -f "$ZIP_PATH"
 "$ZIP_BIN" -r "$ZIP_PATH" "${INCLUDE_FILES[@]}" \
   --exclude "*.DS_Store" \
   --exclude "__MACOSX/*"
+
+# Never report success for a missing archive or a ZIP with corrupt members.
+[[ -f "$ZIP_PATH" ]] || { echo "ERROR: Package was not created: $ZIP_PATH" >&2; exit 1; }
+"$ZIP_BIN" -T "$ZIP_PATH"
 
 echo ""
 echo "Package created : $ZIP_PATH"
