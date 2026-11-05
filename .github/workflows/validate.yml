@@ -22,9 +22,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Verify GNU Make command discovery and recipe graph
+        run: |
+          make help
+          make -n build package clean
       - run: npm ci
       - run: npm audit --audit-level=low
-      - run: ./release.sh --no-bump
+      - run: make pack
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - id: version

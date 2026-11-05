@@ -15,7 +15,11 @@ cd "$(dirname "$0")"
 BUMP_TYPE="${1:-patch}"
 MANIFEST="manifest.json"
 PKG="package.json"
-DIST_DIR="dist"
+DIST_DIR="${DIST_DIR:-dist}"
+NODE_BIN="${NODE:-node}"
+NPM_BIN="${NPM:-npm}"
+ZIP_BIN="${ZIP:-zip}"
+JQ_BIN="${JQ:-jq}"
 
 # Files/dirs to include in the ZIP (relative to project root)
 INCLUDE_FILES=(
@@ -59,27 +63,28 @@ bump_semver() {
 # ──────────────────────────────────────────────
 # Pre-flight checks
 # ──────────────────────────────────────────────
-require_cmd node
-require_cmd npm
-require_cmd zip
-require_cmd jq
+require_cmd "$NODE_BIN"
+"$NODE_BIN" scripts/make-support.mjs guard "$DIST_DIR"
+require_cmd "$NPM_BIN"
+require_cmd "$ZIP_BIN"
+require_cmd "$JQ_BIN"
 
 # ──────────────────────────────────────────────
 # Read current version from manifest.json
 # ──────────────────────────────────────────────
-CURRENT_VERSION=$(jq -r '.version' "$MANIFEST")
+CURRENT_VERSION=$("$JQ_BIN" -r '.version' "$MANIFEST")
 echo "Current version : $CURRENT_VERSION"
 
 NEW_VERSION=$(bump_semver "$CURRENT_VERSION" "$BUMP_TYPE")
 echo "New version     : $NEW_VERSION"
 
 # Validate source before changing version metadata.
-npm run lint
-npm run test:dependencies
-npm test -- --runInBand
+"$NPM_BIN" run lint
+"$NPM_BIN" run test:dependencies
+"$NPM_BIN" test -- --runInBand
 
 if [[ "$BUMP_TYPE" != "--no-bump" ]]; then
-  node - "$NEW_VERSION" <<'NODE'
+  "$NODE_BIN" - "$NEW_VERSION" <<'NODE'
 const fs = require("fs");
 const version = process.argv[2];
 for (const file of ["manifest.json", "package.json", "package-lock.json"]) {
@@ -101,7 +106,7 @@ mkdir -p "$DIST_DIR"
 rm -f "$ZIP_PATH"
 
 # Build the zip directly from source — no staging copy needed
-zip -r "$ZIP_PATH" "${INCLUDE_FILES[@]}" \
+"$ZIP_BIN" -r "$ZIP_PATH" "${INCLUDE_FILES[@]}" \
   --exclude "*.DS_Store" \
   --exclude "__MACOSX/*"
 
