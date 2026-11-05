@@ -12,7 +12,7 @@ NPM ?= npm
 ZIP ?= zip
 JQ ?= jq
 RELEASE_SCRIPT ?= ./release.sh
-DIST_DIR ?= dist
+DIST_DIR ?= dist/generated
 export NODE NPM ZIP JQ DIST_DIR
 .PHONY: help install test test-dependencies lint check build dev pack package release release-minor release-major clean guard-dist
 help: ## Show commands and publishing/version-bump distinctions

@@ -36,6 +36,6 @@ jobs:
       - name: Upload store-ready ZIP without wrapping it in another archive
         uses: actions/upload-artifact@v7
         with:
-          path: dist/quick-api-client-v${{ steps.version.outputs.value }}.zip
+          path: dist/generated/quick-api-client-v${{ steps.version.outputs.value }}.zip
           archive: false
           if-no-files-found: error
